@@ -2,7 +2,7 @@ from enum import Enum
 import inspect
 from pathlib import Path
 import uuid
-from typing import Callable, Generic, TypeVar, Self
+from typing import Any, Callable, Generic, TypeVar, Self
 import hashlib
 
 from data.serializers import DataSerializer
@@ -98,9 +98,37 @@ class Node:
     def get_input_serializer(self, name: str) -> DataSerializer | None:        
         return self.__get_serializer(self.input_serializers, name)
 
+    def get_required_inputs(self) -> list[tuple[str, Any]]:
+        annotations = self.function.__annotations__
+        return [(key, annotations[key]) for key in annotations.keys()]
+
+    def get_available_outputs(self) -> list[tuple[str, Any]] | None:
+        if self.outputs is None:
+            return
+        
+        return_annotations = inspect.signature(self.function).return_annotation
+
+        if isinstance(self.outputs, str):
+            return [(self.outputs, return_annotations)]
+
+        return [(self.outputs[i], return_annotations[i]) for i in range(len(self.outputs))]
+
     def execute(self, **kwargs):
         bounded_args = inspect.signature(self.function).bind(None, kwargs)
         bounded_args.apply_defaults()
         return self.function(*bounded_args.args, **bounded_args.kwargs)
+    
+    #endregion
+
+    #region Overrides
+
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, Node):
+            return False
+        
+        return self.runtime_id == value.runtime_id
+    
+    def __hash__(self) -> int:
+        return hash(self.runtime_id)
     
     #endregion
