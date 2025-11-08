@@ -31,6 +31,22 @@ class NodeMeta:
     @classmethod
     def init_from(cls, node: Node):
         return cls(node.get_persistent_hash(), dict.fromkeys(NodeMeta.get_input_keys(node)))
+    
+    def set_current_hashes(self, current_hashes: dict[str, str | None]):
+        self.input_hashes = current_hashes
+    
+    def is_current(self, current_hashes: dict[str, str | None]) -> bool:
+        for key, value in current_hashes.items():
+            if value is None:
+                return False
+            if not self.input_hashes.__contains__(key):
+                return False
+            if self.input_hashes[key] is None:
+                return False
+            if self.input_hashes[key] != value:
+                return False
+        
+        return True
 
 class NamespaceMeta:
     def __init__(self, name: str, nodes: list[NodeMeta]) -> None:
@@ -67,8 +83,10 @@ class CexMeta:
     def __init__(self, namespaces: list[NamespaceMeta]):
         self.namespaces = namespaces
 
-    def add_namespace(self, namespace: Namespace, nodes: list[Node]):
-        self.namespaces.append(NamespaceMeta.init_from(namespace.name, nodes))
+    def create_namespace(self, namespace: Namespace, nodes: list[Node]) -> NamespaceMeta:
+        meta = NamespaceMeta.init_from(namespace.name, nodes)
+        self.namespaces.append(meta)
+        return meta
 
     # TODO handle duplicate namespaces
     def get_namespace(self, name: str) -> NamespaceMeta | None:
@@ -93,6 +111,7 @@ class ExecutionMetadataHandler:
         else:
             self.data = CexMeta.init_from([])
 
+    # TODO Evaluate perf impact, replace with relevant decorators for ease of use
     def sync(self) -> None:
         with open(META_FILE_PATH, 'w', encoding='utf-8') as file:
             json.dump(self.data, file, indent=4)
