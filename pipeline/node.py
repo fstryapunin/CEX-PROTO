@@ -59,7 +59,7 @@ class Node:
 
     #region Execution Methods
 
-    def get_hash(self) -> str:
+    def get_persistent_hash(self) -> str:
         def get_stable_input_aliases():
             if self.input_aliases is None:
                 return None
