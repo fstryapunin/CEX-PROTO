@@ -27,14 +27,11 @@ def get_file_hash(file_path, chunk_size=8192) -> str | None:
     
     return hash_func.hexdigest()
 
-class Executor:
+class NamespaceExecutor:
     def __init__(self, namespace: Namespace) -> None:
         self.namespace = namespace
         self.nodes_by_id: dict[uuid.UUID, Node] = dict()
         self.input_paths: dict[uuid.UUID, dict[str, str]] = dict()
-
-    def load_meta(self):
-        pass
 
     def build_graph(self):
         graph = nx.DiGraph()
@@ -76,32 +73,49 @@ class Executor:
         return stems
     
     def validate_node_parameters(self):
+        result = True
         for node in self.graph.nodes:
             if not isinstance(node, Node):
                 logging.error(f"Invalid type error, {node} is not an instance of Node")
-                return
+                result = False
+                continue 
             if node.input_aliases is not None:
                 flat_aliases = list(itertools.chain.from_iterable(node.input_aliases))
 
                 for alias in flat_aliases:
                     if not isinstance(alias, str):
+                        result = False
                         logging.error(f"Alias of incorrect type: {type(alias)} passed to node: {node.name}. Only string are allowed ")
 
                 if len(flat_aliases) != len(set(flat_aliases)):
+                    result = False
                     logging.error(f"Duplicate input aliases were passed to node {node.name}")
 
-            # TODO validate unique outputs
-            # if len(node.outputs) != len(set(flat_aliases)):
-            #         logging.error(f"Duplicate input aliases were passed to node {node.name}")
+            if node.outputs is not None:
+                node_outputs = [node.outputs] if isinstance(node.outputs, str) else node.outputs
+                return_annotations = inspect.signature(node.function).return_annotation
+
+                if(len(return_annotations) != len(node_outputs)):
+                    result = False
+                    logging.error(f"Invalid output configuration for node: {node.name}, outputs must be both named and annotated.")
+
+                if(len(node_outputs) != len(set(node_outputs))):
+                    result = False
+                    logging.error(f"Invalid output configuration for node: {node.name}, duplicate output names are present.")
+
+        return result
 
                 
     def validate_input_dependencies(self):
         sorted_graph = nx.topological_sort(self.graph)
         available_inputs: dict[uuid.UUID, list[tuple[str, Any]]] = defaultdict()
 
+        result = True
         for node in sorted_graph:
             if not isinstance(node, Node):
-                raise
+                logging.error(f"Invalid type error, {node} is not an instance of Node")
+                result = False
+                continue
 
             if node.input_directory is not None:
                 for input in self.get_available_io_inputs(node.input_directory):
@@ -115,15 +129,25 @@ class Executor:
                 
                 if len(matching_inputs) == 0:
                     logging.error(f"No suitable input found for {aliases} in node {node.name}")
+                    result = False
 
                 if len(matching_inputs) > 1:
                     logging.error(f"Ambiguous inputs found for {aliases} in node {node.name}")
+                    result = False
 
                 for subsequent_node in node.subsequent_nodes:
                     outputs = subsequent_node.get_available_outputs()
                     if outputs is not None:
                         available_inputs[subsequent_node.runtime_id].extend(outputs)
-                
+
+        return result
+    
+    def prepare_node_states(self):
+        pass
+
+    def load_meta(self):
+        pass
+
     def update_meta(self):
         pass
 
@@ -132,12 +156,19 @@ class Executor:
             logging.fatal("Pipeline is not a DAG")
             return False
         
-        self.validate_node_parameters()
-        self.validate_input_dependencies()
+        if not self.validate_node_parameters():
+            logging.fatal("Invalid configuration of one or more nodes")
+            return False
+        
+        if not self.validate_input_dependencies():
+            logging.fatal("Invalid dependencies for one or more nodes")
+            return False
+
+        logging.info("Succesfuly validated pipeline")
 
         return True
 
-    def prepare(self):
-        self.meta = self.load_meta()
+    def prepare_execution(self):
         self.graph = self.build_graph()
         self.validate()
+        self.load_meta()
