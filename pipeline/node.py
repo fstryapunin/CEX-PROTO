@@ -14,6 +14,7 @@ class NodeState(Enum):
     SKIPPED = 4
     RUNNING = 5
     EXECUTED = 6
+    ERROR = 7
 
 class Node:
     #region Creation Methods

@@ -4,7 +4,7 @@ import hashlib
 import inspect
 import os
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 import uuid
 from venv import logger
 
@@ -92,6 +92,11 @@ class NamespaceExecutor:
     
     #endregion
 
+    #region Initialization
+
+    def initialize_node_states(self):
+        self.node_execution_states = dict.fromkeys([node.runtime_id for node in list(self.graph)], NodeState.UNINITIALIZED)
+
     def build_graph(self):
         graph = nx.DiGraph()
         queue = deque(self.namespace.root_nodes)
@@ -111,6 +116,8 @@ class NamespaceExecutor:
             visited.add(node)
         
         return graph
+
+    #endregion
 
     def get_available_io_inputs(self, input_dir: str) -> list[Path]:
         path = self.resolve_input_directory_path(input_dir)
@@ -270,6 +277,8 @@ class NamespaceExecutor:
 
     #endregion
 
+    #region Preparation
+
     def prepare_node_states(self):
         sorted_graph = nx.topological_sort(self.graph)
         available_input_hashes: dict[uuid.UUID, list[tuple[str, str | None]]] = defaultdict()
@@ -335,8 +344,53 @@ class NamespaceExecutor:
                 for subsequent_node in node.subsequent_nodes:
                     available_input_hashes[subsequent_node.runtime_id].extend(outputs_with_hashes)
 
+    #endregion
+
     def prepare_execution(self):
         self.graph = self.build_graph()
+        self.initialize_node_states()
         self.validate()
         self.load_meta()
         self.prepare_node_states()
+
+    def resolve_node_inputs(self, node: Node, available: dict[uuid.UUID, list[tuple[str, Any]]]) -> dict[str, Any] | Literal[False]:
+        
+        logger.error(f"Failed to resolve inputs for node: {node.name}")
+
+        return False
+    
+    def verify_node_output(self, output: Any) -> bool:
+        return True
+
+    def execute(self):
+        sorted_graph = nx.topological_generations(self.graph)
+
+        available_inputs: dict[uuid.UUID, list[tuple[str, Any]]] = defaultdict()
+
+        for node in sorted_graph:
+            if not isinstance(node, Node):
+                logging.fatal(f"Invalid type error, {node} is not an instance of Node")
+                raise
+                        
+            if self.node_execution_states[node.runtime_id] == NodeState.SKIPPED:
+                continue
+            
+            self.node_execution_states[node.runtime_id] = NodeState.RUNNING
+
+            inputs = self.resolve_node_inputs(node, available_inputs)
+
+            if inputs == False:
+                self.node_execution_states[node.runtime_id] = NodeState.ERROR
+                continue
+
+            result = node.execute(**inputs)
+
+            is_result_expected = self.verify_node_output(result)
+
+            if not is_result_expected:
+                self.node_execution_states[node.runtime_id] = NodeState.ERROR
+                continue
+
+            
+
+            self.node_execution_states[node.runtime_id] = NodeState.EXECUTED
