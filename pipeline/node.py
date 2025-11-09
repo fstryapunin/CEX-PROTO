@@ -2,7 +2,7 @@ from enum import Enum
 import inspect
 from pathlib import Path
 import uuid
-from typing import Any, Callable, Generic, TypeVar, Self
+from typing import Any, Callable, Self
 import hashlib
 
 from data.serializers import DataSerializer
@@ -23,7 +23,7 @@ class Node:
             function: Callable, 
             *, 
             name: str,
-            input_directory: Path | None,
+            input_directory_name: str | None,
             input_serializers: dict[str, DataSerializer] | DataSerializer | None = None,
             output_directory_name: str | None = None,
             is_cached: bool = False,
@@ -37,7 +37,7 @@ class Node:
         self.name = name
         self.function = function
         self.is_cached = is_cached
-        self.input_directory = input_directory
+        self.input_directory_name = input_directory_name
         self.input_aliases = input_aliases
         self.input_serializers = input_serializers
         self.outputs = outputs
@@ -75,7 +75,7 @@ class Node:
             self.is_cached,
             func_name,
             self.outputs,
-            str(self.input_directory) if self.input_directory else None,
+            str(self.input_directory_name) if self.input_directory_name else None,
             self.output_directory,
             get_stable_input_aliases(),
         )
@@ -101,6 +101,20 @@ class Node:
     def get_required_inputs(self) -> list[tuple[str, Any]]:
         annotations = self.function.__annotations__
         return [(key, annotations[key]) for key in annotations.keys()]
+
+    def get_inputs_aliases(self, input_name: str) -> list[str]:
+        if self.input_aliases is None:
+            return [input_name]
+        
+        aliases = self.input_aliases[input_name]
+
+        if aliases is None:
+            return [input_name]
+
+        if isinstance(aliases, str):
+            return [aliases]
+
+        return aliases 
 
     def get_available_outputs(self) -> list[tuple[str, Any]] | None:
         if self.outputs is None:
