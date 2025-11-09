@@ -1,10 +1,24 @@
-from typing import Generic, TypeVar
+from abc import abstractmethod
+from typing import Protocol, runtime_checkable
 
-
-TData = TypeVar('TData')
-
-class DataSerializer(Generic[TData]):
+@runtime_checkable
+class DataSerializer[TData](Protocol):
+    @abstractmethod
+    def get_file_extension(self) -> str:
+        raise NotImplementedError
+    @abstractmethod
     def load(self) -> TData:
-        raise
+        raise NotImplementedError
+    @abstractmethod
     def save(self, data: TData):
-        pass
+        raise NotImplementedError
+
+class DefaultSerializer:
+    def get_file_extension(self) -> str:
+        raise
+
+    def load(self):
+        raise
+    
+    def save(self, data):
+        raise

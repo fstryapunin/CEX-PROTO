@@ -4,12 +4,12 @@ import hashlib
 import inspect
 import os
 from pathlib import Path
-from typing import Any, get_origin
+from typing import Any, Callable
 import uuid
 from venv import logger
 
 
-from data.serializers import DataSerializer
+from data.serializers import DataSerializer, DefaultSerializer
 from meta.meta import ExecutionMetadataHandler
 from pipeline.namespace import Namespace
 from pipeline.node import Node, NodeState
@@ -31,12 +31,43 @@ def get_file_hash(file_path: Path, chunk_size=8192) -> str | None:
     return hash_func.hexdigest()
 
 class NamespaceExecutor:
-    def __init__(self, namespace: Namespace, meta_handler: ExecutionMetadataHandler) -> None:
+    def __init__(self, namespace: Namespace, meta_handler: ExecutionMetadataHandler, default_serializer: DataSerializer) -> None:
         self.namespace = namespace
         self.meta_handler = meta_handler
         self.node_execution_states: dict[uuid.UUID, NodeState] = dict()
         self.serializers: dict[type, DataSerializer] = dict()
-        self.default_serializer = DataSerializer()
+        self.default_serializer: DataSerializer = default_serializer
+
+    #region Serialization
+
+    def get_serializer(self, node_function: Callable[[str], DataSerializer | None], name: str, type: type) -> DataSerializer | None:
+        serializer = node_function(name)
+
+        if serializer is not None:
+            return serializer
+        
+        if self.serializers.__contains__(type):
+            return self.serializers[type]
+
+        if self.default_serializer is not None:
+            return self.default_serializer
+        
+    def resolve_serializer(self, node, node_function: Callable[[str], DataSerializer | None], output_name: str, output_type: type) -> DataSerializer:
+        serializer = self.get_serializer(node_function, output_name, output_type)
+
+        if serializer is not None:
+            return serializer
+        
+        logger.fatal(f"No serializer could be found for type {output_type} of {output_name} in node {node.name}")
+        raise
+
+    def resolve_output_serializer(self, node: Node, output_name: str, output_type: type):
+        return self.resolve_serializer(node, node.get_output_serializer, output_name, output_type)
+
+    def resolve_input_serializer(self, node: Node, input_name: str, input_type: type):
+        return self.resolve_serializer(node, node.get_input_serializer, input_name, input_type)
+
+    #endregion
 
     # needed later for proper namespacing
     #region Path handling
@@ -47,10 +78,18 @@ class NamespaceExecutor:
     def resolve_input_directory_path(self, input_dir: str) -> Path:
         return Path(input_dir)
     
-    # TODO implement after serialization
     def resolve_output_path(self, node: Node, output_name: str, output_type: type) -> Path:
-        raise
+        extension = self.resolve_output_serializer(node, output_name, output_type).get_file_extension()
+        directory = self.resolve_output_directory_path(node.output_directory)
 
+        return Path(directory) / (output_name + extension)
+
+    def resolve_input_path(self, node: Node, input_name: str, input_type: type) -> Path:
+        extension = self.resolve_input_serializer(node, input_name, input_type).get_file_extension()
+        directory = self.resolve_input_directory_path(node.output_directory)
+
+        return Path(directory) / (input_name + extension)
+    
     #endregion
 
     def build_graph(self):
@@ -125,6 +164,25 @@ class NamespaceExecutor:
                 if(len(node_outputs) != len(set(node_outputs))):
                     result = False
                     logging.error(f"Invalid output configuration for node: {node.name}, duplicate output names are present.")
+                if node.is_cached:
+                    for index in range(len(node_outputs)):
+                        if self.get_serializer(node.get_output_serializer, node.outputs[index], return_annotations[index]) is None:
+                            logging.error(f"Could not find serializer for output: {node.outputs[index]}, type: {return_annotations[index]} of node: {node.name}")
+                            result = False
+
+            if node.output_serializers is not None:
+                if isinstance(node.output_serializers, dict):
+                    for serializer in node.output_serializers.values():
+                        if not isinstance(serializer, DataSerializer):
+                            logging.error(f"Invaild output serializer provided to {node.name}: {serializer}")
+                            result = False
+                elif not isinstance(node.output_serializers, DataSerializer):
+                    logging.error(f"Invaild output serializer provided to {node.name}: {node.output_serializers}")
+                    result = False
+                if isinstance(node.output_serializers, DataSerializer) and isinstance(node.outputs, list) and len(node.outputs) > 1:
+                    logging.error(f"Impossible to determine which output of node: {node.name} to associate with serializer: {node.output_serializers}, please pass a dictionary")
+                    result = False
+
 
         return result
       
@@ -159,6 +217,10 @@ class NamespaceExecutor:
 
                 if len(matching_inputs) > 1:
                     logging.error(f"Ambiguous inputs found for {aliases} in node {node.name}")
+                    result = False
+
+                if self.get_serializer(node.get_input_serializer,  name, type) is None:
+                    logging.error(f"A suitable input for {name} in node: {node.name} of type: {type} was found but no suitable serializer could be determined")
                     result = False
 
                 for subsequent_node in node.subsequent_nodes:
@@ -272,8 +334,6 @@ class NamespaceExecutor:
 
                 for subsequent_node in node.subsequent_nodes:
                     available_input_hashes[subsequent_node.runtime_id].extend(outputs_with_hashes)
-
-            
 
     def prepare_execution(self):
         self.graph = self.build_graph()
