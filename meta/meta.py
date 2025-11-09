@@ -26,7 +26,7 @@ class NodeMeta:
             if self.input_hashes.__contains__(key):
                 new_hashes[key] = self.input_hashes[key]
 
-        self.input_hashes = new_hashes                
+        self.input_hashes = new_hashes              
 
     @classmethod
     def init_from(cls, node: Node):
@@ -80,8 +80,8 @@ class NamespaceMeta:
             if current_meta is None:
                 new_nodes.append(NodeMeta.init_from(node))
                 continue
-
-            new_nodes.append(current_meta.update_from(node))
+            current_meta.update_from(node)
+            new_nodes.append(current_meta)
 
         self.nodes = new_nodes
 
@@ -134,6 +134,7 @@ class ExecutionMetadataHandler:
                 self.data = CexMeta.from_list(json.load(data))
         else:
             self.data = CexMeta.init_from([])
+            self.sync()
 
     # TODO Evaluate perf impact, replace with relevant decorators for ease of use
     def sync(self) -> None:
