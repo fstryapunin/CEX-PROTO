@@ -35,6 +35,9 @@ class NodeMeta:
     def set_current_hashes(self, current_hashes: dict[str, str | None]):
         self.input_hashes = current_hashes
     
+    def update_hash(self, name: str, value: str):
+        self.input_hashes[name] = value
+
     def is_current(self, current_hashes: dict[str, str | None]) -> bool:
         for key, value in current_hashes.items():
             if value is None:

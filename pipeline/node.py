@@ -29,8 +29,8 @@ class Node:
             output_directory_name: str | None = None,
             is_cached: bool = False,
             input_aliases: dict[str, list[str] | str] | None = None,
-            output_serializers: dict[str, DataSerializer] | DataSerializer | None = None,
-            outputs: str | list[str] | None = None
+            output_serializer: DataSerializer | None = None,
+            output_name: str | None
         ) -> None:
         
         self.runtime_id = uuid.uuid4()
@@ -41,8 +41,8 @@ class Node:
         self.input_directory_name = input_directory_name
         self.input_aliases = input_aliases
         self.input_serializers = input_serializers
-        self.outputs = outputs
-        self.output_serializers = output_serializers
+        self.output_name = output_name
+        self.output_serializer = output_serializer
         self.output_directory = f"{output_directory_name}" if output_directory_name is not None else self.name
         self.subsequent_nodes: list[Self] = []
 
@@ -75,7 +75,7 @@ class Node:
             self.name,
             self.is_cached,
             func_name,
-            self.outputs,
+            self.output_name,
             str(self.input_directory_name) if self.input_directory_name else None,
             self.output_directory,
             get_stable_input_aliases(),
@@ -93,15 +93,14 @@ class Node:
         
         return serializers.get(name)      
 
-    def get_output_serializer(self, name: str) -> DataSerializer | None:        
-        return self.__get_serializer(self.output_serializers, name)
+    def get_output_serializer(self) -> DataSerializer | None:        
+        return self.output_serializer
 
     def get_input_serializer(self, name: str) -> DataSerializer | None:        
         return self.__get_serializer(self.input_serializers, name)
 
     def get_required_inputs(self) -> list[tuple[str, Any]]:
-        annotations = self.function.__annotations__
-        return [(key, annotations[key]) for key in annotations.keys()]
+        return [(param[0], param[1].annotation) for param in inspect.signature(self.function).parameters.items()]
 
     def get_inputs_aliases(self, input_name: str) -> list[str]:
         if self.input_aliases is None:
@@ -117,16 +116,11 @@ class Node:
 
         return aliases 
 
-    def get_available_outputs(self) -> list[tuple[str, Any]] | None:
-        if self.outputs is None:
+    def get_available_output(self) -> tuple[str, Any] | None:
+        if self.output_name is None:
             return
         
-        return_annotations = inspect.signature(self.function).return_annotation
-
-        if isinstance(self.outputs, str):
-            return [(self.outputs, return_annotations)]
-
-        return [(self.outputs[i], return_annotations[i]) for i in range(len(self.outputs))]
+        return (self.output_name, inspect.signature(self.function).return_annotation)
 
     def execute(self, **kwargs):
         bounded_args = inspect.signature(self.function).bind(None, kwargs)

@@ -1,15 +1,14 @@
 
 from collections import defaultdict, deque
 import hashlib
-import inspect
 import os
 from pathlib import Path
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 import uuid
 from venv import logger
 
 
-from data.serializers import DataSerializer, DefaultSerializer
+from data.serializers import DataSerializer
 from meta.meta import ExecutionMetadataHandler
 from pipeline.namespace import Namespace
 from pipeline.node import Node, NodeState
@@ -40,32 +39,46 @@ class NamespaceExecutor:
 
     #region Serialization
 
-    def get_serializer(self, node_function: Callable[[str], DataSerializer | None], name: str, type: type) -> DataSerializer | None:
-        serializer = node_function(name)
-
-        if serializer is not None:
-            return serializer
-        
+    def get_serializer(self, type: type) -> DataSerializer | None:
         if self.serializers.__contains__(type):
             return self.serializers[type]
 
         if self.default_serializer is not None:
             return self.default_serializer
         
-    def resolve_serializer(self, node, node_function: Callable[[str], DataSerializer | None], output_name: str, output_type: type) -> DataSerializer:
-        serializer = self.get_serializer(node_function, output_name, output_type)
+    def resolve_output_serializer(self, node: Node):
+        serializer = node.get_output_serializer()
 
         if serializer is not None:
             return serializer
         
-        logger.fatal(f"No serializer could be found for type {output_type} of {output_name} in node {node.name}")
-        raise
+        output = node.get_available_output()
 
-    def resolve_output_serializer(self, node: Node, output_name: str, output_type: type):
-        return self.resolve_serializer(node, node.get_output_serializer, output_name, output_type)
+        if output is None:
+            logger.fatal(f"Attempted to resolver output serializer for node: {node.name} that produces no output")
+            raise
+
+        serializer = self.get_serializer(output[1])
+
+        if serializer is None:
+            logger.fatal(f"No serializer could be found for output: {output[0]} type {output[1]} in node {node.name}")
+            raise
+
+        return serializer
 
     def resolve_input_serializer(self, node: Node, input_name: str, input_type: type):
-        return self.resolve_serializer(node, node.get_input_serializer, input_name, input_type)
+        serializer = node.get_input_serializer(input_name)
+        
+        if serializer is not None:
+            return serializer
+        
+        serializer = self.get_serializer(input_type)
+
+        if serializer is None:
+            logger.fatal(f"No serializer could be found for input: {input_name} type {input_type} in node {node.name}")
+            raise
+
+        return serializer
 
     #endregion
 
@@ -78,11 +91,17 @@ class NamespaceExecutor:
     def resolve_input_directory_path(self, input_dir: str) -> Path:
         return Path(input_dir)
     
-    def resolve_output_path(self, node: Node, output_name: str, output_type: type) -> Path:
-        extension = self.resolve_output_serializer(node, output_name, output_type).get_file_extension()
+    def resolve_output_path(self, node: Node) -> Path:
+        output = node.get_available_output()
+
+        if output is None:
+            logger.fatal(f"Attempted to resolve output path for node: {node} that produces no outputs")
+            raise
+
+        extension = self.resolve_output_serializer(node).get_file_extension()
         directory = self.resolve_output_directory_path(node.output_directory)
 
-        return Path(directory) / (output_name + extension)
+        return Path(directory) / (output[0] + extension)
 
     def resolve_input_path(self, node: Node, input_name: str, input_type: type) -> Path:
         extension = self.resolve_input_serializer(node, input_name, input_type).get_file_extension()
@@ -160,36 +179,15 @@ class NamespaceExecutor:
                     result = False
                     logging.error(f"Duplicate input aliases were passed to node {node.name}")
 
-            if node.outputs is not None:
-                node_outputs = [node.outputs] if isinstance(node.outputs, str) else node.outputs
-                return_annotations = inspect.signature(node.function).return_annotation
+            output = node.get_available_output()
+            if output is not None and node.is_cached and node.get_output_serializer() is None and self.get_serializer(output[1]) is None:
+                logging.error(f"Could not find serializer for output: {output[0]}, type: {output[1]} of node: {node.name}")
+                result = False
 
-                if(len(return_annotations) != len(node_outputs)):
+            if node.output_serializer is not None:
+                if not isinstance(node.output_serializer, DataSerializer):
+                    logging.error(f"Invaild output serializer provided to {node.name}: {node.output_serializer}")
                     result = False
-                    logging.error(f"Invalid output configuration for node: {node.name}, outputs must be both named and annotated.")
-
-                if(len(node_outputs) != len(set(node_outputs))):
-                    result = False
-                    logging.error(f"Invalid output configuration for node: {node.name}, duplicate output names are present.")
-                if node.is_cached:
-                    for index in range(len(node_outputs)):
-                        if self.get_serializer(node.get_output_serializer, node.outputs[index], return_annotations[index]) is None:
-                            logging.error(f"Could not find serializer for output: {node.outputs[index]}, type: {return_annotations[index]} of node: {node.name}")
-                            result = False
-
-            if node.output_serializers is not None:
-                if isinstance(node.output_serializers, dict):
-                    for serializer in node.output_serializers.values():
-                        if not isinstance(serializer, DataSerializer):
-                            logging.error(f"Invaild output serializer provided to {node.name}: {serializer}")
-                            result = False
-                elif not isinstance(node.output_serializers, DataSerializer):
-                    logging.error(f"Invaild output serializer provided to {node.name}: {node.output_serializers}")
-                    result = False
-                if isinstance(node.output_serializers, DataSerializer) and isinstance(node.outputs, list) and len(node.outputs) > 1:
-                    logging.error(f"Impossible to determine which output of node: {node.name} to associate with serializer: {node.output_serializers}, please pass a dictionary")
-                    result = False
-
 
         return result
       
@@ -211,12 +209,9 @@ class NamespaceExecutor:
             node_available_inputs = available_inputs.pop(node.runtime_id)
 
             for name, type in node.get_required_inputs():
-                aliases = node.input_aliases[name] if node.input_aliases is not None else [name]
+                aliases = node.get_inputs_aliases(name)
 
-                if isinstance(aliases, str):
-                    aliases = [aliases]
-
-                matching_inputs = list(filter(lambda input: any([alias == input[0] for alias in aliases]) and issubclass(input[1], type), node_available_inputs))
+                matching_inputs = list(filter(lambda input: any([alias == input[0] for alias in aliases]) and (input[1] == object or input[1] == type), node_available_inputs))
                 
                 if len(matching_inputs) == 0:
                     logging.error(f"No suitable input found for {aliases} in node {node.name}")
@@ -226,14 +221,16 @@ class NamespaceExecutor:
                     logging.error(f"Ambiguous inputs found for {aliases} in node {node.name}")
                     result = False
 
-                if self.get_serializer(node.get_input_serializer,  name, type) is None:
+                try:
+                    self.resolve_input_serializer(node, name, type)
+                except:
                     logging.error(f"A suitable input for {name} in node: {node.name} of type: {type} was found but no suitable serializer could be determined")
                     result = False
 
                 for subsequent_node in node.subsequent_nodes:
-                    outputs = subsequent_node.get_available_outputs()
+                    outputs = subsequent_node.get_available_output()
                     if outputs is not None:
-                        available_inputs[subsequent_node.runtime_id].extend(outputs)
+                        available_inputs[subsequent_node.runtime_id].append(outputs)
 
         return result
 
@@ -335,16 +332,15 @@ class NamespaceExecutor:
                 self.node_execution_states[node.runtime_id] = NodeState.READY
 
             if node.is_cached:
-                outputs = node.get_available_outputs()
-                if outputs is None:
+                output = node.get_available_output()
+                if output is None:
                     continue
 
-                outputs_with_hashes = [(output[0], get_file_hash(self.resolve_output_path(node, output[0], output[1]))) for output in outputs]
+                output_hash = get_file_hash(self.resolve_output_path(node))
 
                 for subsequent_node in node.subsequent_nodes:
-                    available_input_hashes[subsequent_node.runtime_id].extend(outputs_with_hashes)
+                    available_input_hashes[subsequent_node.runtime_id].append((output[0], output_hash))
 
-    #endregion
 
     def prepare_execution(self):
         self.graph = self.build_graph()
@@ -353,16 +349,66 @@ class NamespaceExecutor:
         self.load_meta()
         self.prepare_node_states()
 
-    def resolve_node_inputs(self, node: Node, available: dict[uuid.UUID, list[tuple[str, Any]]]) -> dict[str, Any] | Literal[False]:
-        
-        logger.error(f"Failed to resolve inputs for node: {node.name}")
+    #endregion
 
+    #region Execution
+
+    def resolve_node_inputs(self, node: Node, available: dict[uuid.UUID, list[tuple[str, Any]]]) -> dict[str, Any] | Literal[False]:
+        resolved_inputs = dict[str, Any]()
+        available_inputs = available[node.runtime_id]
+        available_io_inputs = []
+        required_inputs = node.get_required_inputs()
+
+        if node.input_directory_name is not None:
+            available_io_inputs = self.get_available_io_inputs(node.input_directory_name)
+
+        for name, type in required_inputs:
+            aliases = node.get_inputs_aliases(name)
+            inputs = []
+            io_inputs: list[Path] = []
+
+            for alias in aliases:
+                inputs += list(filter(lambda available: available[0] == alias, available_inputs))
+                io_inputs += list(filter(lambda available: available.stem == alias, available_io_inputs))
+
+            if len(inputs) > 1:
+                break
+
+            if len(inputs) == 1:
+                resolved_inputs[name] = inputs[0]
+                continue
+            
+            if len(io_inputs) == 1:
+                io_input = io_inputs[0]
+                try:
+                    serializer = self.resolve_input_serializer(node, name, type)
+                    resolved_inputs[name] = serializer.load(io_input)
+                except:
+                    break
+            else:
+                break
+
+        if len(required_inputs) == len(resolved_inputs.keys()):
+            return resolved_inputs
+
+        logger.fatal(f"Failed to resolve inputs for node: {node.name}")
         return False
     
-    def verify_node_output(self, output: Any) -> bool:
-        return True
+    def verify_node_output(self, node: Node, output_value: Any) -> bool:
+        expected_output = node.get_available_output()
+        if expected_output is None:
+            return True
 
+        if expected_output[1] == type(output_value):
+            return True
+        
+        logger.fatal(f"Unexpect output for node: {node.name}")
+        return False
+
+    # TODO replace with topological generations and pararell execution
     def execute(self):
+        logger.info(f"Started execution of {self.namespace.name}")
+
         sorted_graph = nx.topological_generations(self.graph)
 
         available_inputs: dict[uuid.UUID, list[tuple[str, Any]]] = defaultdict()
@@ -380,17 +426,54 @@ class NamespaceExecutor:
             inputs = self.resolve_node_inputs(node, available_inputs)
 
             if inputs == False:
+                logger.fatal(f"Could not resolve inputs for node: {node.name} during execution")
                 self.node_execution_states[node.runtime_id] = NodeState.ERROR
                 continue
-
-            result = node.execute(**inputs)
-
-            is_result_expected = self.verify_node_output(result)
-
-            if not is_result_expected:
-                self.node_execution_states[node.runtime_id] = NodeState.ERROR
-                continue
-
             
+            try:
+                result = node.execute(**inputs)
+            except Exception as exception:
+                logger.fatal(f"Node {node.name} reported an exception during execution: {exception}")
+                continue
+
+            node_output = node.get_available_output()
+
+            if node_output is None:
+                continue
+
+            if not self.verify_node_output(node, result):
+                self.node_execution_states[node.runtime_id] = NodeState.ERROR
+                continue
+
+            for subsequent_node in node.subsequent_nodes:
+                available_inputs[subsequent_node.runtime_id].append((node_output[0], result))
+
+            if node.is_cached:
+                try:
+                    serializer = self.resolve_output_serializer(node)
+                    path = self.resolve_output_path(node)
+
+                    if path is None:
+                        logger.fatal(f"Faile to  resolve output path ")
+                        raise
+
+                    serializer.save(path, result)
+                    output_hash = get_file_hash(path)
+
+                    meta = self.meta_data.get_node_meta(node.get_persistent_hash())
+
+                    if meta is not None and output_hash is not None:
+                        meta.update_hash(node_output[0], output_hash)
+                    else:
+                        logger.fatal(f"Failed to update meta for node: {node.name}, ouput: {node_output[0]}")
+                        raise
+                except:
+                    logger.fatal(f"Failed to save node output: {node_output[0]} of node {node.name}")
+                    self.node_execution_states[node.runtime_id] = NodeState.ERROR
+                    continue
 
             self.node_execution_states[node.runtime_id] = NodeState.EXECUTED
+
+        logger.info(f"Finished executing {self.namespace.name}")
+
+    #endregion
