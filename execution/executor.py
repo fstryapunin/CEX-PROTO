@@ -30,12 +30,12 @@ def get_file_hash(file_path: Path, chunk_size=8192) -> str | None:
     return hash_func.hexdigest()
 
 class NamespaceExecutor:
-    def __init__(self, namespace: Namespace, meta_handler: ExecutionMetadataHandler, default_serializer: DataSerializer) -> None:
+    def __init__(self, namespace: Namespace, meta_handler: ExecutionMetadataHandler, default_serializer: DataSerializer | None = None) -> None:
         self.namespace = namespace
         self.meta_handler = meta_handler
         self.node_execution_states: dict[uuid.UUID, NodeState] = dict()
         self.serializers: dict[type, DataSerializer] = dict()
-        self.default_serializer: DataSerializer = default_serializer
+        self.default_serializer = default_serializer
 
     #region Serialization
 
@@ -86,10 +86,10 @@ class NamespaceExecutor:
     #region Path handling
 
     def resolve_output_directory_path(self, output_dir: str) -> Path:
-        return Path(output_dir)
+        return Path.cwd() / Path(self.namespace.name) / output_dir
 
     def resolve_input_directory_path(self, input_dir: str) -> Path:
-        return Path(input_dir)
+        return Path.cwd() / Path(self.namespace.name) / input_dir
     
     def resolve_output_path(self, node: Node) -> Path:
         output = node.get_available_output()
@@ -193,7 +193,7 @@ class NamespaceExecutor:
       
     def validate_input_dependencies(self):
         sorted_graph = nx.topological_sort(self.graph)
-        available_inputs: dict[uuid.UUID, list[tuple[str, Any]]] = defaultdict()
+        available_inputs: dict[uuid.UUID, list[tuple[str, Any]]] = defaultdict(list)
 
         result = True
         for node in sorted_graph:
@@ -206,31 +206,34 @@ class NamespaceExecutor:
                 for input in self.get_available_io_inputs(node.input_directory_name):
                     available_inputs[node.runtime_id].append((input.stem, object))
             
-            node_available_inputs = available_inputs.pop(node.runtime_id)
+            node_available_inputs = available_inputs.pop(node.runtime_id) if available_inputs.__contains__(node.runtime_id) else []
 
             for name, type in node.get_required_inputs():
                 aliases = node.get_inputs_aliases(name)
+                matching_inputs = list(filter(
+                    lambda input: any([alias == input[0] for alias in aliases]) and (input[1] == object or input[1] == type), 
+                    node_available_inputs))
 
-                matching_inputs = list(filter(lambda input: any([alias == input[0] for alias in aliases]) and (input[1] == object or input[1] == type), node_available_inputs))
-                
                 if len(matching_inputs) == 0:
-                    logging.error(f"No suitable input found for {aliases} in node {node.name}")
+                    logging.error(f"No suitable input found for {name} in node {node.name}")
                     result = False
+                    continue
 
                 if len(matching_inputs) > 1:
-                    logging.error(f"Ambiguous inputs found for {aliases} in node {node.name}")
+                    logging.error(f"Ambiguous inputs found for {name} in node {node.name}")
                     result = False
+                    continue
 
                 try:
                     self.resolve_input_serializer(node, name, type)
                 except:
                     logging.error(f"A suitable input for {name} in node: {node.name} of type: {type} was found but no suitable serializer could be determined")
                     result = False
-
-                for subsequent_node in node.subsequent_nodes:
-                    outputs = subsequent_node.get_available_output()
-                    if outputs is not None:
-                        available_inputs[subsequent_node.runtime_id].append(outputs)
+            
+            outputs = node.get_available_output()
+            for subsequent_node in node.subsequent_nodes:
+                if outputs is not None:
+                    available_inputs[subsequent_node.runtime_id].append(outputs)
 
         return result
 
@@ -258,12 +261,11 @@ class NamespaceExecutor:
     def load_meta(self):
         nodes = list(self.graph)
         stored = self.meta_handler.data.get_namespace(self.namespace.name)
-
         if stored is None:
             self.meta_data = self.meta_handler.data.create_namespace(self.namespace, nodes)
             self.meta_handler.sync()
             return
-        
+            
         stored.update_from(nodes)
         self.meta_data = stored
         self.meta_handler.sync()
