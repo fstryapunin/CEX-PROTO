@@ -5,7 +5,7 @@ import json
 
 # TODO this can be majorly optimised if a dictionary based impl is used instead of lists
 
-META_DIR_PATH = Path("cex")
+META_DIR_PATH = Path(".cex")
 META_FILE_PATH = META_DIR_PATH / "cex.json"
 
 class NodeMeta:
@@ -50,7 +50,14 @@ class NodeMeta:
                 return False
         
         return True
-
+    
+    def to_serializable(self) -> dict:
+        return { "hash": self.hash, "input_hashes": self.input_hashes }
+    
+    @classmethod
+    def from_dict(cls, dict: dict) -> "NodeMeta":
+        return cls(dict["hash"], dict["input_hashes"])
+    
 class NamespaceMeta:
     def __init__(self, name: str, nodes: list[NodeMeta]) -> None:
         self.name = name
@@ -78,6 +85,13 @@ class NamespaceMeta:
 
         self.nodes = new_nodes
 
+    def to_serializable(self) -> dict:
+        return { "name": self.name, "nodes": [node.to_serializable() for node in self.nodes]}
+
+    @classmethod
+    def from_dict(cls, dict: dict) -> "NamespaceMeta":
+        return cls(dict["name"], [NodeMeta.from_dict(node_dict) for node_dict in dict['nodes']])
+
     @classmethod
     def init_from(cls, name: str, nodes: list[Node]):
         return cls(name, [NodeMeta.init_from(node) for node in nodes])
@@ -97,7 +111,15 @@ class CexMeta:
 
         if len(namespace_metas) == 0:
             return
+        
         return namespace_metas[0]
+
+    def to_serializable(self):
+        return [ns.to_serializable() for ns in self.namespaces]
+
+    @classmethod
+    def from_list(cls, list: list):
+        return cls([NamespaceMeta.from_dict(ns_dict) for ns_dict in list])
 
     @classmethod
     def init_from(cls, namespaces: list[tuple[Namespace, list[Node]]]):
@@ -109,12 +131,11 @@ class ExecutionMetadataHandler:
 
         if META_FILE_PATH.is_file():
             with open(META_FILE_PATH, 'r', encoding='utf-8') as data:
-                self.data = CexMeta([NamespaceMeta(**ns) for ns in json.load(data)])
-
+                self.data = CexMeta.from_list(json.load(data))
         else:
             self.data = CexMeta.init_from([])
 
     # TODO Evaluate perf impact, replace with relevant decorators for ease of use
     def sync(self) -> None:
         with open(META_FILE_PATH, 'w', encoding='utf-8') as file:
-            json.dump(self.data, file, indent=4)
+            json.dump(self.data.to_serializable(), file, indent=4)
