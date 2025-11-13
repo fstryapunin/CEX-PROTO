@@ -377,7 +377,7 @@ class NamespaceExecutor:
                 break
 
             if len(inputs) == 1:
-                resolved_inputs[name] = inputs[0]
+                resolved_inputs[name] = inputs[0][1]
                 continue
             
             if len(io_inputs) == 1:
@@ -433,7 +433,7 @@ class NamespaceExecutor:
                 continue
             
             try:
-                result = node.execute(**inputs)
+                result = node.execute(inputs)
             except Exception as exception:
                 logger.fatal(f"Node {node.name} reported an exception during execution: {exception}")
                 continue
