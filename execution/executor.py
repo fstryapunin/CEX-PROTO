@@ -1,8 +1,6 @@
 
 from collections import defaultdict, deque
-import hashlib
 import inspect
-import os
 from pathlib import Path
 from typing import Any, Literal
 import uuid
@@ -10,6 +8,7 @@ from venv import logger
 
 
 from data.serializers import DataSerializer
+from execution.utils import get_file_hash
 from meta.meta import ExecutionMetadataHandler
 from pipeline.namespace import Namespace
 from pipeline.node import Node, NodeState
@@ -18,17 +17,6 @@ import logging
 
 import itertools
 
-
-def get_file_hash(file_path: Path, chunk_size=8192) -> str | None:
-    if not os.path.exists(file_path):
-        return None
-
-    hash_func = hashlib.new('sha256')
-    with open(file_path, 'rb') as f:
-        while chunk := f.read(chunk_size):
-            hash_func.update(chunk)
-    
-    return hash_func.hexdigest()
 
 class NamespaceExecutor:
     def __init__(self, namespace: Namespace, meta_handler: ExecutionMetadataHandler, default_serializer: DataSerializer | None = None) -> None:
@@ -288,7 +276,7 @@ class NamespaceExecutor:
 
     def prepare_node_states(self):
         sorted_graph = nx.topological_sort(self.graph)
-        available_input_hashes: dict[uuid.UUID, list[tuple[str, str | None]]] = defaultdict()
+        available_input_hashes: dict[uuid.UUID, list[tuple[str, str | None]]] = defaultdict(list)
         
         for node in sorted_graph:
             if not isinstance(node, Node):
@@ -306,7 +294,7 @@ class NamespaceExecutor:
                 raise
 
             # resolve available inputs and generate hashes
-            node_inputs = available_input_hashes.pop(node.runtime_id)
+            node_inputs = available_input_hashes.pop(node.runtime_id) if available_input_hashes.__contains__(node.runtime_id) else []
             io_inputs = self.get_available_io_inputs(node.input_directory_name) if node.input_directory_name is not None else []
 
             required_inputs = node.get_required_inputs()
@@ -477,8 +465,8 @@ class NamespaceExecutor:
                     else:
                         logger.fatal(f"Failed to update meta for node: {node.name}, ouput: {node_output[0]}")
                         raise
-                except:
-                    logger.fatal(f"Failed to save node output: {node_output[0]} of node {node.name}")
+                except Exception as e:
+                    logger.fatal(f"Failed to save node output: {node_output[0]} of node {node.name}. Error: {e}")
                     self.node_execution_states[node.runtime_id] = NodeState.ERROR
                     continue
 
