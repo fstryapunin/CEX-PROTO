@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import json
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
@@ -23,3 +24,19 @@ class DefaultSerializer:
     
     def save(self, path, data):
         raise
+
+class JsonSerializer:
+    def get_file_extension(self) -> str:
+        return ".json"
+    
+    def load(self, path):
+        if path.is_file():
+            with open(path, 'r', encoding='utf-8') as data:
+                return json.load(data)
+        else: raise Exception(f"File not found at {path}")
+    
+    def save(self, path: Path, data):
+        path.mkdir(exist_ok=True, parents=True)
+        with open(path, 'w', encoding='utf-8') as file:
+            json.dump(data, file, indent=4)
+
