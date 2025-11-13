@@ -122,8 +122,8 @@ class Node:
         
         return (self.output_name, inspect.signature(self.function).return_annotation)
 
-    def execute(self, **kwargs):
-        bounded_args = inspect.signature(self.function).bind(**kwargs)
+    def execute(self, arguments):
+        bounded_args = inspect.signature(self.function).bind(**arguments)
         bounded_args.apply_defaults()
         return self.function(*bounded_args.args, **bounded_args.kwargs)
     
