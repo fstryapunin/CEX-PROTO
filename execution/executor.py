@@ -1,6 +1,7 @@
 
 from collections import defaultdict, deque
 import hashlib
+import inspect
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -167,6 +168,13 @@ class NamespaceExecutor:
                 logging.error(f"Invalid type error, {node} is not an instance of Node")
                 result = False
                 continue 
+            
+            allowed_parameter_kinds = {inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY}
+
+            if any([param[1].kind not in allowed_parameter_kinds  for param in inspect.signature(node.function).parameters.items()]):
+                logging.error(f"Positional only parameter detected in the signature of function {node.function}")
+                return False
+
             if node.input_aliases is not None:
                 flat_aliases = list(itertools.chain.from_iterable(node.input_aliases))
 
