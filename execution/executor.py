@@ -357,7 +357,7 @@ class NamespaceExecutor:
 
     def resolve_node_inputs(self, node: Node, available: dict[uuid.UUID, list[tuple[str, Any]]]) -> dict[str, Any] | Literal[False]:
         resolved_inputs = dict[str, Any]()
-        available_inputs = available[node.runtime_id]
+        available_inputs = available.get(node.runtime_id) or []
         available_io_inputs = []
         required_inputs = node.get_required_inputs()
 
@@ -411,9 +411,9 @@ class NamespaceExecutor:
     def execute(self):
         logger.info(f"Started execution of {self.namespace.name}")
 
-        sorted_graph = nx.topological_generations(self.graph)
+        sorted_graph = nx.topological_sort(self.graph)
 
-        available_inputs: dict[uuid.UUID, list[tuple[str, Any]]] = defaultdict()
+        available_inputs: dict[uuid.UUID, list[tuple[str, Any]]] = defaultdict(list)
 
         for node in sorted_graph:
             if not isinstance(node, Node):

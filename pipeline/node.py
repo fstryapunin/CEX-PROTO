@@ -1,6 +1,5 @@
 from enum import Enum
 import inspect
-from pathlib import Path
 import uuid
 from typing import Any, Callable, Self
 import hashlib
@@ -17,6 +16,7 @@ class NodeState(Enum):
     ERROR = 7
 
 class Node:
+    
     #region Creation Methods
 
     def __init__(
@@ -24,13 +24,13 @@ class Node:
             function: Callable, 
             *, 
             name: str,
-            input_directory_name: str | None,
+            input_directory_name: str | None = None,
             input_serializers: dict[str, DataSerializer] | DataSerializer | None = None,
             output_directory_name: str | None = None,
             is_cached: bool = False,
             input_aliases: dict[str, list[str] | str] | None = None,
             output_serializer: DataSerializer | None = None,
-            output_name: str | None
+            output_name: str | None = None
         ) -> None:
         
         self.runtime_id = uuid.uuid4()
@@ -50,7 +50,7 @@ class Node:
         if isinstance(arg, list):
             self.subsequent_nodes += arg
             return self
-        if isinstance(arg, Self):
+        if isinstance(arg, Node):
             self.subsequent_nodes.append(arg)
             return self
 
@@ -123,7 +123,7 @@ class Node:
         return (self.output_name, inspect.signature(self.function).return_annotation)
 
     def execute(self, **kwargs):
-        bounded_args = inspect.signature(self.function).bind(None, kwargs)
+        bounded_args = inspect.signature(self.function).bind(**kwargs)
         bounded_args.apply_defaults()
         return self.function(*bounded_args.args, **bounded_args.kwargs)
     
