@@ -36,7 +36,7 @@ class JsonSerializer:
         else: raise Exception(f"File not found at {path}")
     
     def save(self, path: Path, data):
-        path.mkdir(exist_ok=True, parents=True)
+        path.parent.mkdir(exist_ok=True, parents=True)
         with open(path, 'w', encoding='utf-8') as file:
             json.dump(data, file, indent=4)
 
