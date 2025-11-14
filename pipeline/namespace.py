@@ -8,3 +8,6 @@ class Namespace:
 
     def add_root_node(self, node: Node):
         self.root_nodes.append(node)
+
+    def __str__(self) -> str:
+        return self.name

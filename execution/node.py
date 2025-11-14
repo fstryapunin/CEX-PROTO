@@ -2,19 +2,17 @@ import inspect
 from pathlib import Path
 
 from data.serializers import DataSerializer
-from execution.common import DataInformation
+from execution.common import DataInformation, ExecutionState, RuntimeException
 from execution.executor import NamespaceExecutor
-from execution.validation import ValidationMessages
+from execution.utils import get_file_hash
 from meta.meta import MetadataProvider, NodeMeta
-from pipeline.node import Node, NodeState
-
-import itertools
+from pipeline.node import Node
 
 class NodeExecutor:
     def __init__(self, node: Node, namespace: NamespaceExecutor, meta_provider: MetadataProvider) -> None:
         self.node = node
         self.meta_metaprovider = meta_provider
-        self.state = NodeState.UNINITIALIZED
+        self.state = ExecutionState.UNINITIALIZED
         self.parent = namespace
     
     @property
@@ -22,8 +20,20 @@ class NodeExecutor:
         return self.node.runtime_id
     
     @property
+    def name(self):
+        return self.name
+
+    @property
     def subsequent_nodes(self):
         return self.node.subsequent_nodes
+
+    @property 
+    def subsequent_node_ids(self):
+        return [node.runtime_id for node in self.node.subsequent_nodes]
+
+    @property
+    def is_cached(self):
+        return self.node.is_cached
 
     #region IO
 
@@ -56,6 +66,21 @@ class NodeExecutor:
 
         return aliases
 
+    def resolve_input_serializer(self, input: DataInformation) -> DataSerializer:
+        if isinstance(self.node.input_serializers, DataSerializer):
+            return self.node.input_serializers
+
+        serializer: DataSerializer | None = None
+        if self.node.input_serializers is None:
+            serializer = self.parent.resolve_serializer(input)
+        elif input.name in self.node.input_serializers:
+            serializer = self.node.input_serializers[input.name]
+
+        if serializer is None:
+            raise RuntimeException(f"Failed to resolve serializer for input: {input} of node: {self.name}")
+
+        return serializer
+        
     def resolve_output_serializer(self) -> DataSerializer:
         if self.node.output_serializer:
             return self.node.output_serializer
@@ -85,6 +110,48 @@ class NodeExecutor:
         
         return DataInformation(self.node.output_name, signature.return_annotation, path)
 
+    #region Execution
+
+    def resolve_value(self, info: DataInformation):
+        if info.value is not None:
+            return info.value
+        
+        if info.path is not None:
+            serializer = self.resolve_input_serializer(info)
+            return serializer.load(info.path)
+        
+        raise RuntimeException(f"Failed to resolve value for input {info.name} of node: {self.name}. Neither value or path was provided")
+
+    def execute(self, args: dict[str, DataInformation]):
+        input_values = {key: self.resolve_value(info) for key, info in args.items()}
+
+        bounded_args = inspect.signature(self.node.function).bind(**input_values)
+        bounded_args.apply_defaults()
+
+        value = self.node.function(*bounded_args.args, **bounded_args.kwargs)
+
+        output = self.get_output_information()
+        
+        if output is None or output.path is None:
+            return
+        
+        result = output.with_value(value, f"Node {self.name} produced output of invalid type. Expected {output.type}, got {type(value)}")
+
+        if self.is_cached:
+            serializer = self.resolve_output_serializer()
+            serializer.save(output.path, result)
+            hash = get_file_hash(output.path)
+
+            if hash is None:
+                raise RuntimeException(f"Failed to hash output of node {self.name}")
+            
+            self.meta.update_output_hash(hash)
+            self.meta_metaprovider.sync()
+
+        return result
+
+    #endregion
+
     #region Meta
 
     @property
@@ -103,69 +170,12 @@ class NodeExecutor:
 
     #endregion
 
-    #region Validation
+    #region State
 
-    def validate(self) -> tuple[bool, list[str]]:
-        valdiation_messages = []
+    def set_state(self, state: ExecutionState):
+        self.state = state
 
-        if not isinstance(self.node.name, str):
-            valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("name", type(self.node.name), self.node))
-
-        if not callable(self.node.function):
-            valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("function", type(self.node.function), self.node))
-
-        if self.node.output_name is not None and not isinstance(self.node.output_name, str):
-            valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("output name", type(self.node.output_name), self.node))
-
-        if self.node.input_directory_name is not None and not isinstance(self.node.input_directory_name, str):
-            valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input directory name", type(self.node.input_directory_name), self.node))
-
-        if not isinstance(self.node.output_directory, str):
-            valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("output directory name", type(self.node.output_directory), self.node))
-
-        if not isinstance(self.node.is_cached, bool):
-            valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("is cached", type(self.node.is_cached), self.node))
-
-        allowed_parameter_kinds = {inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY}
-        signature = inspect.signature(self.node.function).parameters.items()
-
-        if any([param[1].kind not in allowed_parameter_kinds  for param in signature]):
-            valdiation_messages.append(f"Invalid function provided to node {self.node.name}, position-only parameters are not allowed")
-
-        if self.node.input_aliases is not None:
-            flat_aliases = list(itertools.chain.from_iterable(self.node.input_aliases))
-
-            for alias in flat_aliases:
-                if not isinstance(alias, str):
-                    valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input alias", type(alias), self.node))
-
-            if len(flat_aliases) != len(set(flat_aliases)):
-                valdiation_messages.append(f"Duplicate input aliases were passed to node {self.node.name}")
-
-        if self.node.output_serializer is not None and not isinstance(self.node.output_serializer, DataSerializer) is not None:
-            valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("output serializer", type(self.node.output_serializer), self.node, ValidationMessages.InvalidSerializer()))
-
-        if self.node.input_serializers is not None:
-            if isinstance(self.node.input_serializers, list):
-                for serializer in self.node.input_serializers:
-                    if not isinstance(serializer, DataSerializer):
-                        valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input serializer", type(serializer), self.node, ValidationMessages.InvalidSerializer()))
-
-            if not isinstance(self.node.input_serializers, DataSerializer):
-                valdiation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input serializer", type(self.node.input_serializers), self.node, ValidationMessages.InvalidSerializer()))
-
-        output_info = self.get_output_information()
-
-        if output_info is not None:
-            if output_info.type == inspect._empty:
-                valdiation_messages.append(f"Function output must be annotated with type hints if function produces an output.")
-        
-        is_valid = len(valdiation_messages) == 0
-
-        if not is_valid:
-            self.state = NodeState.INVALID
-
-        return is_valid, valdiation_messages
+    #endregion
 
     #endregion
     

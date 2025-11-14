@@ -1,11 +1,10 @@
-from collections import deque
 import inspect
 import itertools
 from data.serializers import DataSerializer
+from execution.common import DataInformation
 from execution.utils import dfs
 from pipeline.namespace import Namespace
 from pipeline.node import Node
-import networkx as nx
 
 class ValidationException(Exception):
     def __init__(self, messages: list[str], *args: object) -> None:
@@ -35,7 +34,14 @@ class ValidationMessages:
     def NotAnInstanceOf(type: type, type_name: str):
         return f"{type} is not an instance of {type_name}"
     
-
+    @staticmethod
+    def CannotSatisfyInput(node: Node | str, namespace: Namespace | str, input: DataInformation):
+        return f"No suitable input was found for input: {input.name} of type {input.type} of node {node} in namespace {namespace}"
+    
+    @staticmethod
+    def AmbiguosInputs(node: Node | str, namespace: Namespace | str, input: DataInformation):
+        return f"Ambiguous inputs detect for input: {input.name} of type {input.type} of node {node} in namespace {namespace}"
+    
 class NodeValidator:
     @staticmethod
     def validate(node: Node) -> tuple[bool, list[str]]:
@@ -93,6 +99,9 @@ class NodeValidator:
                     if not isinstance(serializer, DataSerializer):
                         validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input serializer", type(serializer), node, ValidationMessages.InvalidSerializer()))
 
+            if isinstance(node.input_serializers, DataSerializer) and len(signature.parameters.items()) > 1:
+                validation_messages.append(f"Node {node} has multiple inputs but only one serializer was provided. To specify serializer for a specific input, provide a dictionary.")
+
             if not isinstance(node.input_serializers, DataSerializer):
                 validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input serializer", type(node.input_serializers), node, ValidationMessages.InvalidSerializer()))
 
@@ -126,4 +135,5 @@ class NamespaceValidator:
 
         dfs(namespace.root_nodes, Node.get_subsequent_nodes, callback)
 
-        return len(messages) == 0, messages
+        if len(messages) > 0:
+            raise ValidationException(messages)

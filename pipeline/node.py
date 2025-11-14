@@ -1,19 +1,8 @@
-from enum import Enum
-import inspect
 import uuid
-from typing import Any, Callable, Self
+from typing import Callable, Self
 import hashlib
 
 from data.serializers import DataSerializer
-
-class NodeState(Enum):
-    UNINITIALIZED = 1
-    VALIDATED = 2
-    READY = 3
-    SKIPPED = 4
-    RUNNING = 5
-    EXECUTED = 6
-    ERROR = 7
 
 class Node:
     
@@ -34,7 +23,6 @@ class Node:
         ) -> None:
         
         self.runtime_id = uuid.uuid4()
-        self.state = NodeState.UNINITIALIZED
         self.name = name
         self.function = function
         self.is_cached = is_cached
@@ -58,7 +46,7 @@ class Node:
     
     #endregion
 
-    #region Execution Methods
+    #region Methods
 
     def get_persistent_hash(self) -> str:
         def get_stable_input_aliases():
@@ -87,46 +75,10 @@ class Node:
 
         return hashlib.sha256(stable_representation).hexdigest()
 
-    def __get_serializer(self, serializers: dict[str, DataSerializer] | DataSerializer | None, name: str) -> DataSerializer | None:
-        if isinstance(serializers, DataSerializer) or serializers == None : 
-            return serializers
-        
-        return serializers.get(name)      
 
-    def get_output_serializer(self) -> DataSerializer | None:        
-        return self.output_serializer
+    def get_subsequent_nodes(self) -> list[Self]:
+        return self.subsequent_nodes
 
-    def get_input_serializer(self, name: str) -> DataSerializer | None:        
-        return self.__get_serializer(self.input_serializers, name)
-
-    def get_required_inputs(self) -> list[tuple[str, Any]]:
-        return [(param[0], param[1].annotation) for param in inspect.signature(self.function).parameters.items()]
-
-    def get_inputs_aliases(self, input_name: str) -> list[str]:
-        if self.input_aliases is None:
-            return [input_name]
-        
-        aliases = self.input_aliases[input_name]
-
-        if aliases is None:
-            return [input_name]
-
-        if isinstance(aliases, str):
-            return [aliases]
-
-        return aliases 
-
-    def get_available_output(self) -> tuple[str, Any] | None:
-        if self.output_name is None:
-            return
-        
-        return (self.output_name, inspect.signature(self.function).return_annotation)
-
-    def execute(self, arguments):
-        bounded_args = inspect.signature(self.function).bind(**arguments)
-        bounded_args.apply_defaults()
-        return self.function(*bounded_args.args, **bounded_args.kwargs)
-    
     #endregion
 
     #region Overrides
@@ -139,5 +91,8 @@ class Node:
     
     def __hash__(self) -> int:
         return hash(self.runtime_id)
+    
+    def __str__(self) -> str:
+        return self.name
     
     #endregion

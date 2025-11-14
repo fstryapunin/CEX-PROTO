@@ -1,102 +1,87 @@
+from collections import defaultdict
+from typing import Self
 from pipeline.namespace import Namespace
 from pathlib import Path
 from pipeline.node import Node
 import json
 
-# TODO this can be majorly optimised if a dictionary based impl is used instead of lists
-
 META_DIR_PATH = Path(".cex")
 META_FILE_PATH = META_DIR_PATH / "cex.json"
-
+a = 5
 class NodeMeta:
-    def __init__(self, hash: str, input_hashes: dict[str, str | None]) -> None:
-        self.hash = hash
-        self.input_hashes = input_hashes
-
-    @staticmethod
-    def get_input_keys(node: Node):
-        return node.function.__annotations__.keys()
-
-    def update_from(self, node: Node):
-        new_keys = NodeMeta.get_input_keys(node)
-
-        new_hashes = dict.fromkeys(NodeMeta.get_input_keys(node))
-
-        for key in new_keys:
-            if self.input_hashes.__contains__(key):
-                new_hashes[key] = self.input_hashes[key]
-
-        self.input_hashes = new_hashes              
+    def __init__(self, node_hash: str, input_hashes: dict[str, str] | None, output_hash: str | None) -> None:
+        self.node_hash = node_hash
+        self.input_hashes = input_hashes if input_hashes is not None else defaultdict()
+        self.output_hash = output_hash
 
     @classmethod
     def init_from(cls, node: Node):
-        return cls(node.get_persistent_hash(), dict.fromkeys(NodeMeta.get_input_keys(node)))
-    
-    def set_current_hashes(self, current_hashes: dict[str, str | None]):
-        self.input_hashes = current_hashes
-    
-    def update_hash(self, name: str, value: str):
+        return cls(node.get_persistent_hash(), None, None)        
+
+    def update_input_hash(self, name: str, value: str):
         self.input_hashes[name] = value
 
-    def is_current(self, current_hashes: dict[str, str | None]) -> bool:
-        for key, value in current_hashes.items():
-            if value is None:
-                return False
-            if not self.input_hashes.__contains__(key):
-                return False
-            if self.input_hashes[key] is None:
-                return False
-            if self.input_hashes[key] != value:
-                return False
-        
-        return True
+    def update_output_hash(self, value: str):
+        self.output_hash = value
+
+    def is_current_input(self, name: str, hash: str):
+        return self.input_hashes[name] == hash and hash is not None
+
+    def is_current_output(self, value: str):
+        return value == self.output_hash
     
     def to_serializable(self) -> dict:
-        return { "hash": self.hash, "input_hashes": self.input_hashes }
+        return { "node_hash": self.node_hash, "input_hashes": self.input_hashes, "output_hash": self.output_hash }
     
     @classmethod
-    def from_dict(cls, dict: dict) -> "NodeMeta":
-        return cls(dict["hash"], dict["input_hashes"])
+    def from_dict(cls, dict: dict) -> Self:
+        return cls(dict["node_hash"], dict["input_hashes"], dict["output_hash"])
     
 class NamespaceMeta:
-    def __init__(self, name: str, nodes: list[NodeMeta]) -> None:
+    def __init__(self, name: str, nodes: defaultdict[str, NodeMeta]) -> None:
         self.name = name
-        self.nodes = nodes
+        self.nodes = nodes 
     
     def get_node_meta(self, hash: str) -> NodeMeta | None:
-        nodes = [ns for ns in self.nodes if ns.hash == hash]
-
-        if len(nodes) == 0:
-            return
-        
-        return nodes[0] 
+        return self.nodes[hash]
 
     def update_from(self, nodes: list[Node]):
-        new_nodes = []
+        new_nodes: defaultdict[str, NodeMeta] = defaultdict()
 
         for node in nodes:
-            current_meta = self.get_node_meta(node.get_persistent_hash())
+            node_hash = node.get_persistent_hash()
+            current_meta = self.get_node_meta(node_hash)
             
             if current_meta is None:
-                new_nodes.append(NodeMeta.init_from(node))
+                new_nodes[node_hash] = NodeMeta.init_from(node)
                 continue
-            current_meta.update_from(node)
-            new_nodes.append(current_meta)
+
+            new_nodes[node_hash] = current_meta
 
         self.nodes = new_nodes
 
     def to_serializable(self) -> dict:
-        return { "name": self.name, "nodes": [node.to_serializable() for node in self.nodes]}
+        return { "name": self.name, "nodes": self.nodes}
 
     @classmethod
-    def from_dict(cls, dict: dict) -> "NamespaceMeta":
-        return cls(dict["name"], [NodeMeta.from_dict(node_dict) for node_dict in dict['nodes']])
+    def from_dict(cls, dict: dict) -> Self:
+        nodes = defaultdict()
+        
+        for key, value in dict["nodes"].items():
+            nodes[key] = NodeMeta.from_dict(value)
+
+        return cls(dict["name"], nodes)
 
     @classmethod
     def init_from(cls, name: str, nodes: list[Node]):
-        return cls(name, [NodeMeta.init_from(node) for node in nodes])
+        meta_nodes = defaultdict()
 
-class CexMeta:
+        for node in nodes:
+            meta_nodes[node.get_persistent_hash()] = NodeMeta.init_from(node)
+
+        return cls(name, meta_nodes)
+
+class MetaData:
     def __init__(self, namespaces: list[NamespaceMeta]):
         self.namespaces = namespaces
 
@@ -125,15 +110,15 @@ class CexMeta:
     def init_from(cls, namespaces: list[tuple[Namespace, list[Node]]]):
         return cls([NamespaceMeta.init_from(namespace[0].name, namespace[1]) for namespace in namespaces])
 
-class ExecutionMetadataHandler:
+class MetadataProvider:
     def __init__(self) -> None:
         META_DIR_PATH.mkdir(exist_ok=True)
 
         if META_FILE_PATH.is_file():
             with open(META_FILE_PATH, 'r', encoding='utf-8') as data:
-                self.data = CexMeta.from_list(json.load(data))
+                self.data = MetaData.from_list(json.load(data))
         else:
-            self.data = CexMeta.init_from([])
+            self.data = MetaData.init_from([])
             self.sync()
 
     # TODO Evaluate perf impact, replace with relevant decorators for ease of use
