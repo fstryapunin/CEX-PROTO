@@ -1,29 +1,109 @@
 import inspect
-
+from pathlib import Path
 
 from data.serializers import DataSerializer
+from execution.common import DataInformation
+from execution.executor import NamespaceExecutor
 from execution.validation import ValidationMessages
-from meta.meta import NodeMeta
+from meta.meta import MetadataProvider, NodeMeta
 from pipeline.node import Node, NodeState
 
 import itertools
 
-class OutputInformation:
-    def __init__(self, name: str, type: type) -> None:
-        self.name = name
-        self.type = type
-
 class NodeExecutor:
-    def __init__(self, node: Node, meta: NodeMeta, serializer: DataSerializer | None) -> None:
+    def __init__(self, node: Node, namespace: NamespaceExecutor, meta_provider: MetadataProvider) -> None:
         self.node = node
-        self.meta = meta
+        self.meta_metaprovider = meta_provider
         self.state = NodeState.UNINITIALIZED
-        self.serializer = serializer
+        self.parent = namespace
     
-    def get_output_information(self) -> OutputInformation | None:
+    @property
+    def runtime_id(self):
+        return self.node.runtime_id
+    
+    @property
+    def subsequent_nodes(self):
+        return self.node.subsequent_nodes
+
+    #region IO
+
+    def get_available_file_inputs(self) -> list[DataInformation]:
+        if self.node.input_directory_name is None:
+            return []
+        
+        path = self.resolve_path(self.node.input_directory_name)
+
+        inputs = list(path.iterdir())
+        
+        return [DataInformation(input.stem, None, input) for input in inputs]
+    
+    def get_required_inputs(self) -> list[DataInformation]:
+        parameters = inspect.signature(self.node.function).parameters
+
+        return [DataInformation(parameter[0], parameter[1].annotation, None) for parameter in parameters.items()]
+
+    def get_input_aliases(self, input_name: str) -> list[str]:
+        if self.node.input_aliases is None:
+            return [input_name]
+        
+        aliases = self.node.input_aliases[input_name]
+
+        if aliases is None:
+            return [input_name]
+
+        if isinstance(aliases, str):
+            return [aliases]
+
+        return aliases
+
+    def resolve_output_serializer(self) -> DataSerializer:
+        if self.node.output_serializer:
+            return self.node.output_serializer
+        
+        serializer = None
+        output_type = inspect.signature(self.node.function).return_annotation
+        serializer = self.parent.resolve_serializer(output_type)
+
+        if serializer is not None:
+            return serializer
+        
+        raise Exception(f"Failed to resolve output serializer for node {self.node.name}")
+
+    def resolve_path(self, directory: str) -> Path:
+        return self.parent.resolve_path(directory)
+
+
+    def get_output_information(self) -> DataInformation | None:
         signature = inspect.signature(self.node.function)
-        if self.node.output_name is None: return
-        return OutputInformation(self.node.output_name, signature.return_annotation)
+
+        if signature.return_annotation or self.node.output_name is None: return
+
+        path = None
+        if self.node.is_cached:
+            serializer = self.resolve_output_serializer()
+            path = self.resolve_path(self.node.output_directory) / (self.node.output_name + serializer.get_file_extension())
+        
+        return DataInformation(self.node.output_name, signature.return_annotation, path)
+
+    #region Meta
+
+    @property
+    def meta(self) -> NodeMeta:
+        namespace = self.meta_metaprovider.data.get_namespace(self.parent.namespace.name)
+
+        if namespace is None:
+            raise Exception("Missing namespace meta for " + self.parent.namespace.name)
+        
+        meta = namespace.get_node_meta(self.node.get_persistent_hash())
+
+        if meta is None:
+            raise Exception("Missing node meta for " + self.node.name)
+        
+        return meta
+
+    #endregion
+
+    #region Validation
 
     def validate(self) -> tuple[bool, list[str]]:
         valdiation_messages = []
@@ -86,3 +166,18 @@ class NodeExecutor:
             self.state = NodeState.INVALID
 
         return is_valid, valdiation_messages
+
+    #endregion
+    
+    #region Overrides
+
+    def __eq__(self, value: object) -> bool:
+        if not isinstance(value, NodeExecutor):
+            return False
+        
+        return self.node == value.node
+    
+    def __hash__(self) -> int:
+        return hash(self.node.__hash__())
+    
+    #endregion
