@@ -4,4 +4,4 @@ __pycache__/
 *.pyd
 *.pyo
 
-examples/output/*
+examples/data/*
