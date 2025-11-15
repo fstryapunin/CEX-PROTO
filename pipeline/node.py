@@ -16,7 +16,7 @@ class Node:
             input_directory_name: str | None = None,
             input_serializers: dict[str, DataSerializer] | DataSerializer | None = None,
             output_directory_name: str | None = None,
-            is_cached: bool = False,
+            is_cached: bool = True,
             input_aliases: dict[str, list[str] | str] | None = None,
             output_serializer: DataSerializer | None = None,
             output_name: str | None = None
