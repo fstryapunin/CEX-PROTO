@@ -18,7 +18,7 @@ def get_file_hash(file_path: Path, chunk_size=8192) -> str | None:
 
 TNode = TypeVar('TNode')
 
-def dfs(root: list[TNode], get_next: Callable[[TNode], list[TNode]], callback: Callable[[TNode, list[TNode]]]):
+def dfs(root: list[TNode], get_next: Callable[[TNode], list[TNode]], callback: Callable[[TNode, list[TNode]], None]):
     queue = deque(root)
     visited = set()
 
