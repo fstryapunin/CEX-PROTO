@@ -18,10 +18,10 @@ class NamespaceExecutor:
     def __init__(self, namespace: Namespace, meta_provider: MetadataProvider) -> None:
         NamespaceValidator.validate(namespace)
         self.namespace = namespace
+        self.root_path = namespace.root_path
         self.meta_provider = meta_provider
         self.graph = self.build_graph(meta_provider)
         self.serializers: dict[type, DataSerializer] = dict()
-        self.root_path = Path.cwd()
 
     #region Serialization
 
