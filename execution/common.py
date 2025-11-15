@@ -40,13 +40,14 @@ class DataInformation:
 
         return name_matches and type_matches
 
-    # "lazy loaded" as file hashing can be expensive
-    def with_hash(self):
-        if self.path is not None:
-            self.hash = get_file_hash(self.path)
-
+    def update_hash(self):
+        self.hash = self.get_hash()
         return self
-    
+
+    def get_hash(self) -> str | None:
+        if self.path is not None:
+            return get_file_hash(self.path)
+
     def with_value(self, value: Any, type_exception_message: str | None = None):
         value_type = type(value)
 

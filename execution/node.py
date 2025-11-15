@@ -112,18 +112,38 @@ class NodeExecutor:
             path = self.resolve_path(self.node.output_directory) / (self.node.output_name + serializer.get_file_extension())
             return information.with_path(path)
         
+    #region Preparation
+
+    def verify_node_output(self):
+        output = self.get_output_information()
+        if not self.is_cached or output is None: return
+
+        meta_hash = self.meta.output_hash
+
+        if meta_hash is None: return
+
+        current_hash = output.get_hash()
+
+        if not current_hash == meta_hash:
+            self.meta.output_hash = current_hash
+
     #region Execution
 
     def get_are_inputs_current(self, inputs: dict[str, DataInformation]) -> bool:
+        if len(inputs) == 0:
+            return True
+        
         return all([self.meta.is_current_input(input[0], input[1].hash) for input in inputs.items()])
 
-    def get_is_output_current(self):
+    def get_is_output_current(self) -> bool:
         if not self.is_cached: return False
 
         current_hash = self.meta.output_hash
 
         if current_hash is None:
             return False
+        
+        return True
 
     def resolve_value(self, info: DataInformation):
         if info.value is not None:

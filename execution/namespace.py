@@ -112,41 +112,11 @@ class NamespaceExecutor:
     
     #region Preparation
 
-    # def prepare_node_states(self):
-    #     sorted_graph = nx.topological_sort(self.graph)
-    #     available_inputs: dict[uuid.UUID, list[DataInformation]] = defaultdict(list)
-
-    #     for node in sorted_graph:
-    #         output = node.get_output_information()
-
-    #         if output is not None:
-    #             output = output.with_hash()
-
-    #         if output is not None and len(node.subsequent_nodes) > 0:
-    #             append_multiple(available_inputs, node.subsequent_node_ids, output if not node.is_cached else output)
-
-    #         if not node.is_cached:
-    #             node.set_state(ExecutionState.READY)
-    #             continue
-
-    #         state = ExecutionState.SKIPPED
-
-    #         if output is not None and not node.meta.is_current_output(output.hash):
-    #             state = ExecutionState.READY
-
-    #         resolved_inputs = self.resolve_node_inputs(node, pop_or_default(node.runtime_id, available_inputs))
-
-    #         for name, resolved_input in resolved_inputs.items():
-    #             if resolved_input.hash is None or not node.meta.is_current_input(name, resolved_input.hash):
-    #                 state = ExecutionState.READY
-    #                 continue
-
-    #         node.set_state(state)
-
-
     def prepare(self):
-        pass
-        # self.prepare_node_states()
+        nodes = nx.topological_sort(self.graph)
+
+        for node in nodes:
+            node.verify_node_output()
 
     #endregion
 
@@ -185,6 +155,7 @@ class NamespaceExecutor:
                 if not node.get_are_inputs_current(resolved_inputs) or not node.get_is_output_current():
                     result = node.execute(resolved_inputs)
                 else:
+                    logger.info(f"Skipped node {node.name}")
                     result = node.skip()
             except Exception as ex:
                 node.set_state(ExecutionState.ERROR)
