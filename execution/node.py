@@ -141,7 +141,7 @@ class NodeExecutor:
 
         if self.is_cached:
             serializer = self.resolve_output_serializer(result)
-            serializer.save(output.path, result)
+            serializer.save(output.path, result.value)
             hash = get_file_hash(output.path)
 
             if hash is None:
