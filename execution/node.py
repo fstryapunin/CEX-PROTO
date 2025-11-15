@@ -102,7 +102,7 @@ class NodeExecutor:
     def get_output_information(self) -> DataInformation | None:
         signature = inspect.signature(self.node.function)
 
-        if signature.return_annotation or self.node.output_name is None: return
+        if signature.return_annotation is None or self.node.output_name is None: return
         
         information = DataInformation(self.node.output_name, signature.return_annotation)
 
@@ -182,6 +182,9 @@ class NodeExecutor:
     #endregion
     
     #region Overrides
+
+    def __str__(self) -> str:
+        return self.name
 
     def __eq__(self, value: object) -> bool:
         if not isinstance(value, NodeExecutor):
