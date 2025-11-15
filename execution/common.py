@@ -1,6 +1,7 @@
 from enum import Enum
 from pathlib import Path
 from typing import Any, Self
+from typing_validation import validate
 
 from execution.utils import get_file_hash
 
@@ -49,13 +50,10 @@ class DataInformation:
             return get_file_hash(self.path)
 
     def with_value(self, value: Any, type_exception_message: str | None = None):
-        value_type = type(value)
-
-        if self.type is not None and value_type != self.type:
-            message = type_exception_message if type_exception_message is not None else f"Value of invalid type provied. Expected {self.type}, got {value_type}"
-            raise RuntimeException(message)
-
+        validate(value, self.type)
+        
         self.value = value
+
         return self
     
     def with_path(self, path: Path):
