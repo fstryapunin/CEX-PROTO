@@ -27,7 +27,7 @@ class ExecutionState(Enum):
     INVALID = 8
 
 class DataInformation:
-    def __init__(self, name: str, type: type | None, path: Path | None) -> None:
+    def __init__(self, name: str, type: type | None, path: Path | None = None) -> None:
         self.name = name
         self.type = type
         self.path = path
@@ -55,6 +55,10 @@ class DataInformation:
             raise RuntimeException(message)
 
         self.value = value
+        return self
+    
+    def with_path(self, path: Path):
+        self.path = path
         return self
 
     def __str__(self) -> str:

@@ -83,13 +83,12 @@ class NodeExecutor:
 
         return serializer
         
-    def resolve_output_serializer(self) -> DataSerializer:
+    def resolve_output_serializer(self, info: DataInformation) -> DataSerializer:
         if self.node.output_serializer:
             return self.node.output_serializer
         
         serializer = None
-        output_type = inspect.signature(self.node.function).return_annotation
-        serializer = self.parent.resolve_serializer(output_type)
+        serializer = self.parent.resolve_serializer(info)
 
         if serializer is not None:
             return serializer
@@ -104,14 +103,15 @@ class NodeExecutor:
         signature = inspect.signature(self.node.function)
 
         if signature.return_annotation or self.node.output_name is None: return
+        
+        information = DataInformation(self.node.output_name, signature.return_annotation)
 
         path = None
         if self.node.is_cached:
-            serializer = self.resolve_output_serializer()
+            serializer = self.resolve_output_serializer(information)
             path = self.resolve_path(self.node.output_directory) / (self.node.output_name + serializer.get_file_extension())
+            return information.with_path(path)
         
-        return DataInformation(self.node.output_name, signature.return_annotation, path)
-
     #region Execution
 
     def resolve_value(self, info: DataInformation):
