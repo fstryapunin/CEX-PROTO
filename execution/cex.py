@@ -59,4 +59,4 @@ class CexExecutor:
             logger.log_multiple(ERROR, ex.messages)
         except Exception as ex:
             logger.error(f"Unexpected runtime exception occured when executing pipeline {namespace.name}")
-            logger.error(ex)
+            logger.exception(ex)
