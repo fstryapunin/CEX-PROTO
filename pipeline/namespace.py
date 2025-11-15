@@ -1,5 +1,6 @@
 from pathlib import Path
 from data.serializers import DataSerializer
+from execution.cex import CexExecutor
 from pipeline.node import Node
 
 
@@ -17,6 +18,10 @@ class Namespace:
     def add_root_node(self, node: Node):
         self.root_nodes.append(node)
         return self
+    
+    def run(self):
+        executor = CexExecutor()
+        executor.execute_pipeline(self)
 
     def __str__(self) -> str:
         return self.name
