@@ -114,6 +114,17 @@ class NodeExecutor:
         
     #region Execution
 
+    def get_are_inputs_current(self, inputs: dict[str, DataInformation]) -> bool:
+        return all([self.meta.is_current_input(input[0], input[1].hash) for input in inputs.items()])
+
+    def get_is_output_current(self):
+        if not self.is_cached: return False
+
+        current_hash = self.meta.output_hash
+
+        if current_hash is None:
+            return False
+
     def resolve_value(self, info: DataInformation):
         if info.value is not None:
             return info.value
@@ -125,6 +136,7 @@ class NodeExecutor:
         raise RuntimeException(f"Failed to resolve value for input {info.name} of node: {self.name}. Neither value or path was provided")
 
     def execute(self, args: dict[str, DataInformation]):
+        self.set_state(ExecutionState.RUNNING)
         input_values = {key: self.resolve_value(info) for key, info in args.items()}
 
         bounded_args = inspect.signature(self.node.function).bind(**input_values)
@@ -147,10 +159,34 @@ class NodeExecutor:
             if hash is None:
                 raise RuntimeException(f"Failed to hash output of node {self.name}")
             
+            for input in args.items():
+                if input[1].hash is None:
+                    continue
+                self.meta.update_input_hash(input[0], input[1].hash)
+            
+            result.hash = hash
             self.meta.update_output_hash(hash)
             self.meta_metaprovider.sync()
 
+        self.set_state(ExecutionState.EXECUTED)
+
         return result
+
+    def skip(self) -> DataInformation | None:
+        if not self.is_cached:
+            raise RuntimeException(f"Skipped non cached node {self.name}")
+
+        output = self.get_output_information()
+
+        if output is not None:
+            if(self.meta.output_hash is None):
+                raise RuntimeException(f"Skipped cached node {self.name} but no hash was available")
+            
+            output.hash = self.meta.output_hash
+
+        self.set_state(ExecutionState.SKIPPED)
+
+        return output
 
     #endregion
 

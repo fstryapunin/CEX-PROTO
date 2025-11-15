@@ -28,11 +28,11 @@ class NodeMeta:
     def update_output_hash(self, value: str):
         self.output_hash = value
 
-    def is_current_input(self, name: str, hash: str):
-        if name not in self.input_hashes:
-            return None
-        
-        return self.input_hashes[name] == hash and hash is not None
+    def is_current_input(self, name: str, hash: str | None) -> bool:
+        if name not in self.input_hashes or hash is None:
+            return False
+            
+        return self.input_hashes[name] == hash
 
     def is_current_output(self, value: str | None):
         if value is None:
@@ -71,7 +71,7 @@ class NamespaceMeta:
         self.nodes = new_nodes
 
     def to_serializable(self) -> dict:
-        return { "name": self.name, "nodes": self.nodes}
+        return { "name": self.name, "nodes": { key: value.to_serializable() for key, value in self.nodes.items()} }
 
     @classmethod
     def from_dict(cls, dict: dict) -> Self:
