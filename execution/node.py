@@ -1,15 +1,17 @@
+from __future__ import annotations
+
 import inspect
 from pathlib import Path
 
 from data.serializers import DataSerializer
 from execution.common import DataInformation, ExecutionState, RuntimeException
-from execution.namespace import NamespaceExecutor
 from execution.utils import get_file_hash
 from meta.meta import MetadataProvider, NodeMeta
 from pipeline.node import Node
+import execution.namespace
 
 class NodeExecutor:
-    def __init__(self, node: Node, namespace: NamespaceExecutor, meta_provider: MetadataProvider) -> None:
+    def __init__(self, node: Node, namespace: execution.namespace.NamespaceExecutor, meta_provider: MetadataProvider) -> None:
         self.node = node
         self.meta_metaprovider = meta_provider
         self.state = ExecutionState.UNINITIALIZED

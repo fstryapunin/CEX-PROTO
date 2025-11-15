@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from logging import INFO, ERROR
 from pathlib import Path
 
@@ -7,8 +9,9 @@ from execution.namespace import NamespaceExecutor
 from execution.validation import ValidationException
 from meta.meta import MetadataProvider
 from pipeline import cex
-from pipeline.namespace import Namespace
 from log import logger
+
+import pipeline.namespace
 
 meta_provider = MetadataProvider()
 
@@ -43,7 +46,7 @@ class CexExecutor:
     def resolve_path(self, path: Path | str) -> Path:
         return self.cex.root_path / path
 
-    def execute_pipeline(self, namespace: Namespace):
+    def execute_pipeline(self, namespace: pipeline.namespace.Namespace):
         try:
             logger.info(f"Validating pipeline {namespace.name}")
             executor = NamespaceExecutor(self, namespace, meta_provider)

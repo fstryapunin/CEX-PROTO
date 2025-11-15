@@ -4,10 +4,11 @@ from pathlib import Path
 from data.serializers import DataSerializer
 from execution.common import DataInformation, ValidationException
 from execution.utils import dfs
-from pipeline.namespace import Namespace
-from pipeline.node import Node
+import pipeline.namespace as pipeline_namespace
+import pipeline.node as pipeline_node
 
-
+type Node = pipeline_node.Node
+type Namespace = pipeline_namespace.Namespace
 
 class ValidationMessages:
     @staticmethod
@@ -45,7 +46,7 @@ class NodeValidator:
     def validate(node: Node) -> tuple[bool, list[str]]:
         validation_messages = []
 
-        if not isinstance(node, Node):
+        if not isinstance(node, pipeline_node.Node):
             validation_messages.append(ValidationMessages.NotAnInstanceOf(type(node), Node.__name__))
             return False, validation_messages
 
@@ -114,7 +115,7 @@ class NamespaceValidator:
     def validate(namespace: Namespace):
         messages: list[str] = []
 
-        if not isinstance(namespace, Namespace):
+        if not isinstance(namespace, pipeline_namespace.Namespace):
             messages.append(ValidationMessages.NotAnInstanceOf(type(namespace), Namespace.__name__))
             is_nodes_valid = False
 
@@ -134,7 +135,7 @@ class NamespaceValidator:
             _, node_messages = NodeValidator.validate(node)
             messages += node_messages
 
-        dfs(namespace.root_nodes, Node.get_subsequent_nodes, callback)
+        dfs(namespace.root_nodes, pipeline_node.Node.get_subsequent_nodes, callback)
 
         if len(messages) > 0:
             raise ValidationException(messages)

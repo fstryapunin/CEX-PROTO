@@ -1,9 +1,13 @@
 from collections import defaultdict
 from typing import Self
-from pipeline.namespace import Namespace
 from pathlib import Path
-from pipeline.node import Node
 import json
+
+import pipeline.node
+import pipeline.namespace
+
+type Node = pipeline.node.Node
+type Namespace = pipeline.namespace.Namespace
 
 META_DIR_PATH = Path(".cex")
 META_FILE_PATH = META_DIR_PATH / "cex.json"

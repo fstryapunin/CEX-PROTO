@@ -1,8 +1,9 @@
 
+from __future__ import annotations
+
 from collections import defaultdict
 from pathlib import Path
 import uuid
-from execution.cex import CexExecutor
 from execution.common import DataInformation, ExecutionState, RuntimeException, ValidationException
 from execution.validation import NamespaceValidator, ValidationMessages
 from log import logger
@@ -11,12 +12,17 @@ from data.serializers import DataSerializer
 from execution.node import NodeExecutor
 from execution.utils import append_multiple, dfs, pop_or_default
 from meta.meta import MetadataProvider
-from pipeline.namespace import Namespace
-from pipeline.node import Node
 import networkx as nx
 
+import execution.cex as cex
+import pipeline.namespace
+import pipeline.node
+
+type Namespace = pipeline.namespace.Namespace
+type Node = pipeline.node.Node
+
 class NamespaceExecutor:
-    def __init__(self, parent: CexExecutor, namespace: Namespace, meta_provider: MetadataProvider) -> None:
+    def __init__(self, parent: cex.CexExecutor, namespace: Namespace, meta_provider: MetadataProvider) -> None:
         NamespaceValidator.validate(namespace)
         self.parent = parent
         self.namespace = namespace
