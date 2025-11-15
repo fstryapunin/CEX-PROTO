@@ -8,6 +8,7 @@ from execution.common import DataInformation, ExecutionState, RuntimeException
 from execution.utils import get_file_hash
 from meta.meta import MetadataProvider, NodeMeta
 from pipeline.node import Node
+from log import logger
 import execution.namespace
 
 class NodeExecutor:
@@ -125,6 +126,7 @@ class NodeExecutor:
         current_hash = output.get_hash()
 
         if not current_hash == meta_hash:
+            logger.warning(f"Could not find output for node {self.name}")
             self.meta.output_hash = current_hash
 
     #region Execution
