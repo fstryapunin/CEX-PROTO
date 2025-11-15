@@ -2,6 +2,7 @@
 from collections import defaultdict
 from pathlib import Path
 import uuid
+from execution.cex import CexExecutor
 from execution.common import DataInformation, ExecutionState, RuntimeException
 from execution.validation import NamespaceValidator, ValidationException, ValidationMessages
 from log import logger
@@ -15,26 +16,30 @@ from pipeline.node import Node
 import networkx as nx
 
 class NamespaceExecutor:
-    def __init__(self, namespace: Namespace, meta_provider: MetadataProvider) -> None:
+    def __init__(self, parent: CexExecutor, namespace: Namespace, meta_provider: MetadataProvider) -> None:
         NamespaceValidator.validate(namespace)
+        self.parent = parent
         self.namespace = namespace
-        self.root_path = namespace.root_path
         self.meta_provider = meta_provider
         self.graph = self.build_graph(meta_provider)
-        self.serializers: dict[type, DataSerializer] = dict()
 
     #region Serialization
 
     def resolve_serializer(self, data: DataInformation) -> DataSerializer | None:
-        if data.type in self.serializers:
-            return self.serializers[data.type]
+        if data.type in self.namespace.serializers_by_type:
+            return self.namespace.serializers_by_type[data.type]
+        
+        return self.parent.resolve_serializer(data)
 
     #endregion
 
     #region Path handling
 
     def resolve_path(self, path: Path | str) -> Path:
-        return self.root_path / path
+        if self.namespace.path.is_absolute():
+            return self.namespace.path / path
+        
+        return self.parent.resolve_path(self.namespace.path / path)
     
     #endregion
 

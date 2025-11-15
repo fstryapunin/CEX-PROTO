@@ -15,7 +15,7 @@ class DataSerializer[TData](Protocol):
     def get_file_extension(self) -> str:
         raise NotImplementedError
     @abstractmethod
-    def matches_file(self, extension: str):
+    def matches_file(self, extension: str) -> bool:
         raise NotImplementedError
     @abstractmethod
     def load(self, path: Path) -> TData:

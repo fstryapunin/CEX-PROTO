@@ -126,8 +126,8 @@ class NamespaceValidator:
         if not isinstance(namespace.name, str):
             messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNamespace(namespace.name, type(namespace.name), ""))
 
-        if not isinstance(namespace.root_path, Path):
-            messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNamespace(namespace.root_path, type(namespace.name), namespace))
+        if not isinstance(namespace.path, Path):
+            messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNamespace(namespace.path, type(namespace.name), namespace))
 
         if len(namespace.root_nodes) == 0:
             messages.append(f"No root nodes provided to namespace {namespace.name}")

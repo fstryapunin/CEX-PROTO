@@ -3,9 +3,6 @@ from pathlib import Path
 from typing import Callable, TypeVar
 
 from collections import defaultdict, deque
-from uuid import UUID
-
-from pipeline.node import Node
 
 
 def get_file_hash(file_path: Path, chunk_size=8192) -> str | None:

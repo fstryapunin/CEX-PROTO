@@ -3,7 +3,7 @@ from pathlib import Path
 
 from data.serializers import DataSerializer
 from execution.common import DataInformation, ExecutionState, RuntimeException
-from execution.executor import NamespaceExecutor
+from execution.namespace import NamespaceExecutor
 from execution.utils import get_file_hash
 from meta.meta import MetadataProvider, NodeMeta
 from pipeline.node import Node
