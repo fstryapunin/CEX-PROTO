@@ -29,9 +29,15 @@ class NodeMeta:
         self.output_hash = value
 
     def is_current_input(self, name: str, hash: str):
+        if name not in self.input_hashes:
+            return None
+        
         return self.input_hashes[name] == hash and hash is not None
 
-    def is_current_output(self, value: str):
+    def is_current_output(self, value: str | None):
+        if value is None:
+            return False
+
         return value == self.output_hash
     
     def to_serializable(self) -> dict:
@@ -89,10 +95,17 @@ class MetaData:
     def __init__(self, namespaces: list[NamespaceMeta]):
         self.namespaces = namespaces
 
-    def create_namespace(self, namespace: Namespace, nodes: list[Node]) -> NamespaceMeta:
-        meta = NamespaceMeta.init_from(namespace.name, nodes)
-        self.namespaces.append(meta)
-        return meta
+    def set_namespace(self, namespace: Namespace, nodes: list[Node]) -> NamespaceMeta:
+        existing = self.get_namespace(namespace.name)
+        
+        if not existing:
+            meta = NamespaceMeta.init_from(namespace.name, nodes)
+            self.namespaces.append(meta)
+            return meta
+        
+        existing.update_from(nodes)
+
+        return existing
 
     # TODO handle duplicate namespaces
     def get_namespace(self, name: str) -> NamespaceMeta | None:
@@ -129,3 +142,5 @@ class MetadataProvider:
     def sync(self) -> None:
         with open(META_FILE_PATH, 'w', encoding='utf-8') as file:
             json.dump(self.data.to_serializable(), file, indent=4)
+
+meta_provider = MetadataProvider()

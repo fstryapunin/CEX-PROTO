@@ -3,40 +3,28 @@ from __future__ import annotations
 from logging import INFO, ERROR
 from pathlib import Path
 
-from data.serializers import CsvSerializer, DataSerializer, JsonSerializer, PickleSerializer, PlainFileSerializer, YamlSerializer
+from data.serializers import DataSerializer
 from execution.common import DataInformation
 from execution.namespace import NamespaceExecutor
 from execution.validation import ValidationException
-from meta.meta import MetadataProvider
+from meta.meta import meta_provider
 from pipeline import cex
 from log import logger
 
 import pipeline.namespace
 
-meta_provider = MetadataProvider()
-
 class CexExecutor:
-    def __init__(self) -> None:
-        self.serilizers_by_type: dict[type, DataSerializer] = dict()
-        self.default_serializers: list[DataSerializer] = [
-            JsonSerializer(), 
-            YamlSerializer(), 
-            CsvSerializer(), 
-            PickleSerializer(), 
-            PlainFileSerializer()
-        ]
-    
     @property
     def cex(self):
         return cex
-
+    
     def resolve_serializer(self, data: DataInformation) -> DataSerializer | None:
-        if data.type in self.serilizers_by_type:
-            return self.serilizers_by_type[data.type]
+        if data.type in cex.serilizers_by_type:
+            return cex.serilizers_by_type[data.type]
         
         if data.path is not None and data.path.is_file():
             extension = data.path.suffix
-            matching_serializers = filter(lambda s: s.matches_file(extension) , self.default_serializers)
+            matching_serializers = filter(lambda s: s.matches_file(extension) , cex.default_serializers)
             return next(matching_serializers, None)
 
     #endregion
@@ -50,6 +38,8 @@ class CexExecutor:
         try:
             logger.info(f"Validating pipeline {namespace.name}")
             executor = NamespaceExecutor(self, namespace, meta_provider)
+            logger.info(f"Updating metadata for {namespace.name}")
+            meta_provider.data.set_namespace(executor.namespace, [node.node for node in list(executor.graph)])
             logger.info(f"Preparing pipeline execution {namespace.name}")
             executor.prepare()
             logger.info(f"Executing pipeline {namespace.name}")
