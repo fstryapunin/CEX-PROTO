@@ -140,7 +140,7 @@ class NodeExecutor:
         result = output.with_value(value, f"Node {self.name} produced output of invalid type. Expected {output.type}, got {type(value)}")
 
         if self.is_cached:
-            serializer = self.resolve_output_serializer()
+            serializer = self.resolve_output_serializer(result)
             serializer.save(output.path, result)
             hash = get_file_hash(output.path)
 
