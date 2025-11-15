@@ -23,7 +23,7 @@ class NodeExecutor:
     
     @property
     def name(self):
-        return self.name
+        return self.node.name
 
     @property
     def subsequent_nodes(self):
