@@ -43,6 +43,18 @@ class ValidationMessages:
     
 class NodeValidator:
     @staticmethod
+    def get_flat_aliases(aliases: dict[str, list[str] | str]):
+        agregate = []
+
+        for item in aliases.items():
+            if isinstance(item, str):
+                agregate.append(item)
+            else:
+                agregate += item
+        
+        return agregate
+
+    @staticmethod
     def validate(node: Node) -> tuple[bool, list[str]]:
         validation_messages = []
 
@@ -80,14 +92,17 @@ class NodeValidator:
             validation_messages.append(f"Function parameters must be type hinted in {node.name}")
 
         if node.input_aliases is not None:
-            flat_aliases = list(itertools.chain.from_iterable(node.input_aliases))
+            if not isinstance(node.input_aliases, dict):
+                validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input aliases", type(node.input_aliases), node))
+            else:
+                flat_aliases = NodeValidator.get_flat_aliases(node.input_aliases)
+                
+                for alias in flat_aliases:
+                    if not isinstance(alias, str):
+                        validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input alias", type(alias), node))
 
-            for alias in flat_aliases:
-                if not isinstance(alias, str):
-                    validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input alias", type(alias), node))
-
-            if len(flat_aliases) != len(set(flat_aliases)):
-                validation_messages.append(f"Duplicate input aliases were passed to node {node.name}")
+                if len(flat_aliases) != len(set(flat_aliases)):
+                    validation_messages.append(f"Duplicate input aliases were passed to node {node.name}")
 
         if node.output_serializer is not None and not isinstance(node.output_serializer, DataSerializer) is not None:
             validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("output serializer", type(node.output_serializer), node, ValidationMessages.InvalidSerializer()))
