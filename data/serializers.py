@@ -65,7 +65,10 @@ class CsvSerializer:
     
     def save(self, path: Path, data):
         path.parent.mkdir(exist_ok=True, parents=True)
-        fieldnames = list(data[0].keys())
+        try:
+            fieldnames = list(data[0].keys())
+        except:
+            raise RuntimeException(f"Invalid data in csv serializer")
         
         with open(path, 'w', newline='', encoding='utf-8') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
