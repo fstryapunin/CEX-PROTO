@@ -8,7 +8,7 @@ from log import logger
 
 from data.serializers import DataSerializer
 from execution.node import NodeExecutor
-from execution.utils import append_multiple, dfs, get_file_hash, pop_or_default
+from execution.utils import append_multiple, dfs, pop_or_default
 from meta.meta import MetadataProvider
 from pipeline.namespace import Namespace
 from pipeline.node import Node
