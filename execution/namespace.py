@@ -52,7 +52,7 @@ class NamespaceExecutor:
     #region Initialization
 
     def build_graph(self, meta_provider: MetadataProvider):
-        graph = nx.DiGraph[NodeExecutor]()
+        graph: nx.DiGraph[NodeExecutor] = nx.DiGraph()
 
         def create_executor(node: Node):
             return NodeExecutor(node, self, meta_provider)
@@ -64,7 +64,7 @@ class NamespaceExecutor:
             for node in next:
                 graph.add_edge(node_executor, create_executor(node))
 
-        dfs(self.namespace.root_nodes, Node.get_subsequent_nodes, callback)
+        dfs(self.namespace.root_nodes, pipeline.node.Node.get_subsequent_nodes, callback)
 
         return graph
 
@@ -153,7 +153,6 @@ class NamespaceExecutor:
         for data_information in required_inputs:
             aliases = node.get_input_aliases(data_information.name)
             matching_inputs = list(filter(lambda input: data_information.match_static(input, aliases), node_inputs))
-
             if len(matching_inputs) != 1:
                 node.set_state(ExecutionState.ERROR)
                 raise RuntimeException(f"Failed to resolve input for input: {data_information} of node: {node.node}")
