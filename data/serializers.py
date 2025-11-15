@@ -2,6 +2,7 @@ from abc import abstractmethod
 import csv
 import json
 from pathlib import Path
+import pickle
 from typing import Protocol, runtime_checkable
 
 import yaml
@@ -22,6 +23,27 @@ class DataSerializer[TData](Protocol):
     @abstractmethod
     def save(self, path: Path, data: TData):
         raise NotImplementedError
+
+class PickleSerializer:
+    
+    def get_file_extension(self) -> str:
+        return ".pkl"
+    
+    def matches_file(self, extension: str):
+        return extension == ".pkl" or extension == ".pickle"
+    
+    def load(self, path: Path):
+        if not path.is_file():
+            raise Exception(f"File not found at {path}")
+            
+        with open(path, 'rb') as file:
+            return pickle.load(file)
+    
+    def save(self, path: Path, data):
+        path.parent.mkdir(exist_ok=True, parents=True)
+        
+        with open(path, 'wb') as file:
+            pickle.dump(data, file)
 
 class CsvSerializer:
     def get_file_extension(self) -> str:
