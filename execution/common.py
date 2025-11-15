@@ -3,7 +3,11 @@ from pathlib import Path
 from typing import Any, Self
 
 from execution.utils import get_file_hash
-from execution.validation import ValidationException
+
+class ValidationException(Exception):
+    def __init__(self, messages: list[str], *args: object) -> None:
+        self.messages = messages
+        super().__init__(*args)
 
 class RuntimeException(Exception):
     def __init__(self, *args: object) -> None:

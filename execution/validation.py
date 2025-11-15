@@ -2,15 +2,12 @@ import inspect
 import itertools
 from pathlib import Path
 from data.serializers import DataSerializer
-from execution.common import DataInformation
+from execution.common import DataInformation, ValidationException
 from execution.utils import dfs
 from pipeline.namespace import Namespace
 from pipeline.node import Node
 
-class ValidationException(Exception):
-    def __init__(self, messages: list[str], *args: object) -> None:
-        self.messages = messages
-        super().__init__(*args)
+
 
 class ValidationMessages:
     @staticmethod

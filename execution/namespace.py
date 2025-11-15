@@ -3,8 +3,8 @@ from collections import defaultdict
 from pathlib import Path
 import uuid
 from execution.cex import CexExecutor
-from execution.common import DataInformation, ExecutionState, RuntimeException
-from execution.validation import NamespaceValidator, ValidationException, ValidationMessages
+from execution.common import DataInformation, ExecutionState, RuntimeException, ValidationException
+from execution.validation import NamespaceValidator, ValidationMessages
 from log import logger
 
 from data.serializers import DataSerializer
