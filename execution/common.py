@@ -35,7 +35,7 @@ class DataInformation:
         self.value: Any = None
 
     def match_static(self, other: Self, name_aliases: list[str] = []):
-        name_matches = other.name == self.name or self.name in name_aliases
+        name_matches = other.name == self.name or other.name in name_aliases
         type_matches = other.type is None or self.type is None or other.type == self.type
 
         return name_matches and type_matches
