@@ -1,8 +1,13 @@
 from pathlib import Path
-from data.serializers import JsonSerializer, PlainFileSerializer
+from data.serializers import JsonSerializer
 from pipeline.namespace import Namespace
 from pipeline.node import Node
 from pipeline import cex
+
+# Different branching patterns are possible.
+# Inputs are resolved by best match based on argument name and type. In case or ambiguity, CEX will raise an exception.
+# Ouputs that are saved to disk must have a provided name
+# Input aliases can be used to associate inputs that are saved with a different name.
 
 if __name__ == "__main__":
     cex.set_root_path(Path("./examples/data"))
