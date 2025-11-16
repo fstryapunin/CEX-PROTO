@@ -107,6 +107,7 @@ class DataInformation:
     
     def with_serializer(self, serializer: DataSerializer):
         self.serializer = serializer
+        return self
 
     def with_path(self, path: Path):
         self.path = path
