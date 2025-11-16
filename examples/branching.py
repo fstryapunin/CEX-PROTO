@@ -5,9 +5,12 @@ from pipeline.node import Node
 from pipeline import cex
 
 # Different branching patterns are possible.
-# Inputs are resolved by best match based on argument name and type. In case or ambiguity, CEX will raise an exception.
-# Ouputs that are saved to disk must have a provided name
-# Input aliases can be used to associate inputs that are saved with a different name.
+# Inputs of each node are resolved by selecting best match from all available outputs of its direct ancestors in DAG.
+# Best match is decided based on argument name and type (considered use of runtime value however this is impractical when dealing with file inputs not yet loaded to memory). 
+# Each possible match is given a score, highest is selected. 
+# If best match is ambiguous, CEX will raise an exception.
+# Input aliases can be used to resolve ambiguity.
+# Nodes that produce output must be provided the output name.
 
 if __name__ == "__main__":
     # Set root folder for CEX. By default is is CWD.
@@ -27,8 +30,8 @@ if __name__ == "__main__":
         return z ** 2
 
     N1_sequential = Node(one, name="One", output_name="result")
-    N2_sequential = Node(double, name="Double", input_aliases={'y': 'result'}, output_name="result")
-    N3_sequential = Node(square, name="Square", input_aliases={'z': 'result'}, output_name="result")
+    N2_sequential = Node(double, name="Double", output_name="result")
+    N3_sequential = Node(square, name="Square", output_name="result")
 
     N1_sequential.continue_with(N2_sequential)
     N2_sequential.continue_with(N3_sequential)
@@ -59,7 +62,7 @@ if __name__ == "__main__":
     
     N1_branching = Node(get_initial_data, name="Initial", output_name="data")
     N2_branching = Node(calculate_sum, name="Sum", output_name="total")
-    N3_branching = Node(calculate_product, name="Product", input_aliases={'data': 'total'}, output_name="product")    
+    N3_branching = Node(calculate_product, name="Product", output_name="product")    
     
     N1_branching.continue_with(N2_branching)
     N1_branching.continue_with(N3_branching)
@@ -67,7 +70,7 @@ if __name__ == "__main__":
     branch_namespace.add_root_node(N1_branching)
     # branch_namespace.run()
 
-    # Join pipeline
+    # Join pipeline. Here it is necessary to alias the input of node N3_join (details -> user) so that inputs can be resolved non ambiguously.
     
     join_namespace = Namespace("JoinNamespace")
     join_namespace.add_serializer_by_type(dict, json_serializer)
@@ -91,7 +94,6 @@ if __name__ == "__main__":
         name="Report", 
         input_aliases={ 
             'details': 'user', 
-            'transactions': 'transactions' 
             }, 
         output_name="report")
 
