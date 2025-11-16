@@ -9,7 +9,7 @@ from pipeline import cex
 
 if __name__ == "__main__":
     # Set root folder for CEX. By default it is CWD.
-    cex.set_root_path(Path("examples"))
+    cex.set_root_path(Path("examples\\data"))
 
     namespace = Namespace("RandomNamespace").add_serializer_by_type(int, JsonSerializer())
 
