@@ -28,6 +28,7 @@ if __name__ == "__main__":
     N2_sequential.continue_with(N3_sequential)
 
     seq_namespace.add_root_node(N1_sequential)
+    # seq_namespace.run()
 
     # Branching pipeline
     json_serializer = JsonSerializer()
@@ -58,4 +59,86 @@ if __name__ == "__main__":
     N1_branching.continue_with(N3_branching)
 
     branch_namespace.add_root_node(N1_branching)
-    branch_namespace.run()
+    # branch_namespace.run()
+
+    # Join pipeline
+    
+    join_namespace = Namespace("JoinNamespace")
+    join_namespace.add_serializer_by_type(dict, json_serializer)
+    join_namespace.add_serializer_by_type(str, json_serializer)
+
+    def fetch_user_data() -> dict:
+        return {"id": 101, "name": "Alice"}
+
+    def fetch_transaction_data() -> dict:
+        return {"count": 5, "total": 1500.00}
+
+    def generate_report(details: dict, transactions: dict) -> str:
+        user = details.get("name")
+        total = transactions.get("total")
+        return f"Report: User {user} made {total} in transactions."
+    
+    N1_join = Node(fetch_user_data, name="UserData", output_name="user")
+    N2_join = Node(fetch_transaction_data, name="TransactionData", output_name="transactions")
+    N3_join = Node(
+        generate_report, 
+        name="Report", 
+        input_aliases={ 
+            'details': 'user', 
+            'transactions': 'transactions' 
+            }, 
+        output_name="report")
+
+    N1_join.continue_with(N3_join)
+    N2_join.continue_with(N3_join)
+
+    join_namespace.add_root_node(N1_join).add_root_node(N2_join)
+
+    # join_namespace.run()
+
+    # Diamond pipeline
+
+    diamond_namespace = Namespace("DiamondNamespace")
+    diamond_namespace.add_serializer_by_type(dict, json_serializer)
+    diamond_namespace.add_serializer_by_type(str, json_serializer)
+
+    def initial_data_load() -> dict:
+        return {"source": "Data source", "value": 100}
+
+    def transform_data_A(data: dict) -> dict:
+        transformed_value = data["value"] * 2
+        return {"data_id": data["source"] + "-A", "transformed_val": transformed_value}
+
+    def transform_data_B(data: dict) -> dict:
+        transformed_value = data["value"] / 2
+        return {"data_id": data["source"] + "-B", "transformed_val": transformed_value}
+
+    def combine_results(result_A: dict, result_B: dict) -> dict:
+        final_combined_value = result_A["transformed_val"] + result_B["transformed_val"]
+        return {
+            "final_id": f"{result_A['data_id']}-{result_B['data_id']}",
+            "combined_sum": final_combined_value
+        }
+
+    N1_diamond = Node(initial_data_load, name="N1_Load", output_name="raw_data")
+    N2_diamond = Node(transform_data_A, name="N2_TransformA", output_name="transformed_A")
+    N3_diamond = Node(transform_data_B, name="N3_TransformB", output_name="transformed_B")
+
+    N4_diamond = Node(
+        combine_results, 
+        name="N4_Combine", 
+        output_name="final_combined_output",
+        input_aliases={
+            "result_A": "transformed_A", 
+            "result_B": "transformed_B"
+        }
+    )
+
+    N1_diamond.continue_with(N2_diamond)
+    N1_diamond.continue_with(N3_diamond)
+    N2_diamond.continue_with(N4_diamond)
+    N3_diamond.continue_with(N4_diamond)
+
+    diamond_namespace.add_root_node(N1_diamond)
+    diamond_namespace.run()
+
