@@ -53,7 +53,7 @@ class NamespaceMeta:
         self.nodes = nodes 
     
     def get_node_meta(self, hash: str) -> NodeMeta | None:
-        return self.nodes[hash]
+        return self.nodes.get(hash)
 
     def update_from(self, nodes: list[Node]):
         new_nodes: defaultdict[str, NodeMeta] = defaultdict()
