@@ -71,8 +71,8 @@ class NodeValidator:
         if node.output_name is not None and not isinstance(node.output_name, str):
             validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("output name", type(node.output_name), node))
 
-        if node.input_directory_name is not None and not isinstance(node.input_directory_name, str):
-            validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input directory name", type(node.input_directory_name), node))
+        if node.input_directory is not None and not isinstance(node.input_directory, str) and not isinstance(node.input_directory, Path):
+            validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("input directory name", type(node.input_directory), node))
 
         if not isinstance(node.output_directory, str):
             validation_messages.append(ValidationMessages.InvalidArgumentTypeProvidedToNode("output directory name", type(node.output_directory), node))

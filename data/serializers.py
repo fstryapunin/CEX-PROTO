@@ -7,8 +7,6 @@ from typing import Protocol, runtime_checkable
 
 import yaml
 
-from execution.common import RuntimeException
-
 @runtime_checkable
 class DataSerializer[TData](Protocol):
     @abstractmethod
@@ -54,7 +52,7 @@ class CsvSerializer:
 
     def load(self, path: Path):
         if not path.is_file():
-            raise RuntimeException(f"File not found at {path}")
+            raise Exception(f"File not found at {path}")
         
         data_list = []
         with open(path, 'r', newline='', encoding='utf-8') as file:
@@ -68,7 +66,7 @@ class CsvSerializer:
         try:
             fieldnames = list(data[0].keys())
         except:
-            raise RuntimeException(f"Invalid data in csv serializer")
+            raise Exception(f"Invalid data in csv serializer")
         
         with open(path, 'w', newline='', encoding='utf-8') as file:
             writer = csv.DictWriter(file, fieldnames=fieldnames)
@@ -80,11 +78,11 @@ class PlainFileSerializer:
         return ".txt"
 
     def matches_file(self, extension: str):
-        return extension == "txt"
+        return extension == ".txt"
     
     def load(self, path: Path) -> str:
         if not path.is_file():
-            raise RuntimeException(f"File not found at {path}")
+            raise Exception(f"File not found at {path}")
             
         with open(path, 'r', encoding='utf-8') as file:
             return file.read()
@@ -108,13 +106,13 @@ class JsonSerializer:
         return ".json"
     
     def matches_file(self, extension: str):
-        return extension == "json"
+        return extension == ".json"
     
     def load(self, path):
         if path.is_file():
             with open(path, 'r', encoding='utf-8') as data:
                 return json.load(data)
-        else: raise RuntimeException(f"File not found at {path}")
+        else: raise Exception(f"File not found at {path}")
     
     def save(self, path: Path, data):
         path.parent.mkdir(exist_ok=True, parents=True)
@@ -126,13 +124,13 @@ class YamlSerializer:
         return ".yaml"
     
     def matches_file(self, extension: str):
-        return extension == "yml" or extension == "yaml"
+        return extension == ".yml" or extension == ".yaml"
 
     def load(self, path):
         if path.is_file():
             with open(path, "r") as f:
                 return yaml.safe_load(f)
-        else: raise RuntimeException(f"File not found at {path}")
+        else: raise Exception(f"File not found at {path}")
     
     def save(self, path: Path, data):
         with open(path, "w") as f:

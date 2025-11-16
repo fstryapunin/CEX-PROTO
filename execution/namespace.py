@@ -43,8 +43,8 @@ class NamespaceExecutor:
 
     def resolve_path(self, path: Path | str) -> Path:
         if self.namespace.path.is_absolute():
-            return self.namespace.path / path
-        
+            return self.namespace.path
+
         return self.parent.resolve_path(self.namespace.path / path)
     
     #endregion

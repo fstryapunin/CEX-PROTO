@@ -41,10 +41,10 @@ class NodeExecutor:
     #region IO
 
     def get_available_file_inputs(self) -> list[DataInformation]:
-        if self.node.input_directory_name is None:
+        if self.node.input_directory is None:
             return []
         
-        path = self.resolve_path(self.node.input_directory_name)
+        path = self.resolve_path(self.node.input_directory)
 
         inputs = list(path.iterdir())
         
@@ -96,7 +96,10 @@ class NodeExecutor:
         
         raise Exception(f"Failed to resolve output serializer for node {self.node.name}")
 
-    def resolve_path(self, directory: str) -> Path:
+    def resolve_path(self, directory: Path | str) -> Path:
+        if isinstance(directory, Path) and directory.is_absolute():
+            return directory
+
         return self.parent.resolve_path(directory)
 
 
@@ -111,7 +114,9 @@ class NodeExecutor:
         if self.node.is_cached:
             serializer = self.resolve_output_serializer(information)
             path = self.resolve_path(self.node.output_directory) / (self.node.output_name + serializer.get_file_extension())
-            return information.with_path(path)
+            return information.with_path(path).with_serializer(serializer)
+        else:
+            return information
         
     #region Preparation
 
@@ -152,8 +157,11 @@ class NodeExecutor:
             return info.value
         
         if info.path is not None:
-            serializer = self.resolve_input_serializer(info)
-            return serializer.load(info.path)
+            if info.serializer is not None:
+                return info.serializer.load(info.path)
+            else:
+                serializer = self.resolve_input_serializer(info)
+                return serializer.load(info.path)
         
         raise RuntimeException(f"Failed to resolve value for input {info.name} of node: {self.name}. Neither value or path was provided")
 
@@ -168,12 +176,15 @@ class NodeExecutor:
 
         output = self.get_output_information()
         
-        if output is None or output.path is None:
+        if output is None:
             return
         
         result = output.with_value(value, f"Node {self.name} produced output of invalid type. Expected {output.type}, got {type(value)}")
 
         if self.is_cached:
+            if output.path is None:
+                raise RuntimeException(f"Missing output path for node {self.name}")
+            
             serializer = self.resolve_output_serializer(result)
             serializer.save(output.path, result.value)
             hash = get_file_hash(output.path)
@@ -200,11 +211,13 @@ class NodeExecutor:
 
         output = self.get_output_information()
 
-        if output is not None:
-            if(self.meta.output_hash is None):
-                raise RuntimeException(f"Skipped cached node {self.name} but no hash was available")
-            
-            output.hash = self.meta.output_hash
+        if output is None:
+            return
+
+        if(self.meta.output_hash is None):
+            raise RuntimeException(f"Skipped cached node {self.name} but no hash was available")
+        
+        output.hash = self.meta.output_hash
 
         self.set_state(ExecutionState.SKIPPED)
 

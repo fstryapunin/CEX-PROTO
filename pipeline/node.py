@@ -1,3 +1,4 @@
+from pathlib import Path
 import uuid
 from typing import Callable, Self
 import hashlib
@@ -13,7 +14,7 @@ class Node:
             function: Callable, 
             *, 
             name: str,
-            input_directory_name: str | None = None,
+            input_directory: str | Path | None = None,
             input_serializers: dict[str, DataSerializer] | DataSerializer | None = None,
             output_directory_name: str | None = None,
             is_cached: bool = True,
@@ -26,7 +27,7 @@ class Node:
         self.name = name
         self.function = function
         self.is_cached = is_cached
-        self.input_directory_name = input_directory_name
+        self.input_directory = input_directory
         self.input_aliases = input_aliases
         self.input_serializers = input_serializers
         self.output_name = output_name
@@ -64,7 +65,7 @@ class Node:
             self.is_cached,
             func_name,
             self.output_name,
-            str(self.input_directory_name) if self.input_directory_name else None,
+            str(self.input_directory) if self.input_directory else None,
             self.output_directory,
             get_stable_input_aliases(),
         )

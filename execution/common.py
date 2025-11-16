@@ -4,6 +4,7 @@ from typing import Any, Self
 import uuid
 from typing_validation import is_valid
 
+from data.serializers import DataSerializer
 from execution.utils import get_file_hash
 
 class ValidationException(Exception):
@@ -49,6 +50,7 @@ class DataInformation:
         self.path = path
         self.hash: str | None = None
         self.value: Any = None
+        self.serializer: DataSerializer | None = None
 
     def match_static(self, other: Self, name_aliases: list[str] = []):
         name_matches = other.name == self.name or other.name in name_aliases
@@ -103,6 +105,9 @@ class DataInformation:
 
         return self
     
+    def with_serializer(self, serializer: DataSerializer):
+        self.serializer = serializer
+
     def with_path(self, path: Path):
         self.path = path
         return self

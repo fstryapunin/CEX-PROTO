@@ -5,10 +5,18 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Python: Debug with Project Root",
+      "name": "Python: Debug with Project Root branching",
       "type": "debugpy",
       "request": "launch",
-      "module": "examples.example",
+      "module": "examples.branching",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Debug with Project Root serializers",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.serializers",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"
     }
