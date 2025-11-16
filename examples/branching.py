@@ -10,6 +10,7 @@ from pipeline import cex
 # Input aliases can be used to associate inputs that are saved with a different name.
 
 if __name__ == "__main__":
+    # Set root folder for CEX. By default is is CWD.
     cex.set_root_path(Path("./examples/data"))
 
     # Sequential pipeline
@@ -145,5 +146,5 @@ if __name__ == "__main__":
     N3_diamond.continue_with(N4_diamond)
 
     diamond_namespace.add_root_node(N1_diamond)
-    diamond_namespace.run()
+    # diamond_namespace.run()
 
