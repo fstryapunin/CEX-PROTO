@@ -46,11 +46,11 @@ class NodeValidator:
     def get_flat_aliases(aliases: dict[str, list[str] | str]):
         agregate = []
 
-        for item in aliases.items():
-            if isinstance(item, str):
-                agregate.append(item)
+        for (key, value) in aliases.items():
+            if isinstance(value, str):
+                agregate.append(value)
             else:
-                agregate += item
+                agregate += value
         
         return agregate
 
