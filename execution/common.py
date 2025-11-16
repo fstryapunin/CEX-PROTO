@@ -81,6 +81,7 @@ class DataInformation:
                 raise RuntimeException(f"{duplicate_message}: {[best_value, option]}, match type {DATA_MACTH_NAMES[best_score]}")
             
             if best_score < int(match):
+                best_score = match
                 best_value = option
 
         return best_value
