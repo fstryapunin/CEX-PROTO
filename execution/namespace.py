@@ -106,7 +106,7 @@ class NamespaceExecutor:
         if not nx.is_directed_acyclic_graph(self.graph):
             raise ValidationException([f"Graph of namespace {self.namespace.name} is not a DAG"])
                 
-        self.validate_input_dependencies()
+        # self.validate_input_dependencies()
             
     #endregion
     
@@ -122,21 +122,27 @@ class NamespaceExecutor:
 
     #region Execution
 
-    def resolve_node_inputs(self, node: NodeExecutor, available: list[DataInformation]):
+    def resolve_node_inputs(self, node: NodeExecutor, available: list[DataInformation]) -> dict[str, DataInformation]:
         node_inputs = available + node.get_available_file_inputs()
         required_inputs = node.get_required_inputs()
-        resolved_inputs: dict[str, DataInformation] = dict()
+        resolved_inputs: dict[str, DataInformation | None] = dict()
         
         for data_information in required_inputs:
             aliases = node.get_input_aliases(data_information.name)
-            matching_inputs = list(filter(lambda input: data_information.match_static(input, aliases), node_inputs))
-            if len(matching_inputs) != 1:
-                node.set_state(ExecutionState.ERROR)
-                raise RuntimeException(f"Failed to resolve input for input: {data_information} of node: {node.node}")
+            matching_input = data_information.get_best_match(node_inputs, f"Failed to resolve inputs for node {node.name}, multiple outputs match input {data_information.name}: ", aliases)
+            resolved_inputs[data_information.name] = matching_input
 
-            resolved_inputs[data_information.name] = matching_inputs[0]
-        
-        return resolved_inputs
+        matched_inputs = set[uuid.UUID]()
+
+        for name, input in resolved_inputs.items():
+            if input is None:
+                raise RuntimeException(f"No suitable input for for input {name} of node: {node.name}")
+            if input.id in matched_inputs:
+                raise RuntimeException(f"Could not resolve inputs for node {node.name}, {input} matches multiple inputs of node {node.name}")
+            
+            matched_inputs.add(input.id)
+
+        return resolved_inputs # type: ignore
     
     # TODO replace with topological generations and pararell execution
     def execute(self):
