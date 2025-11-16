@@ -5,3 +5,4 @@ __pycache__/
 *.pyo
 
 examples/data/*
+!examples/data/input
