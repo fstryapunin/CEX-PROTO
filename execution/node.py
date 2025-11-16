@@ -48,7 +48,7 @@ class NodeExecutor:
 
         inputs = list(path.iterdir())
         
-        return [DataInformation(input.stem, None, input) for input in inputs]
+        return [DataInformation(input.stem, None, input).with_hash() for input in inputs]
     
     def get_required_inputs(self) -> list[DataInformation]:
         parameters = inspect.signature(self.node.function).parameters
@@ -143,6 +143,7 @@ class NodeExecutor:
         return all([self.meta.is_current_input(input[0], input[1].hash) for input in inputs.items()])
 
     def get_is_output_current(self) -> bool:
+        if self.get_output_information() is None: return True
         if not self.is_cached: return False
 
         current_hash = self.meta.output_hash
@@ -176,32 +177,34 @@ class NodeExecutor:
 
         output = self.get_output_information()
         
-        if output is None:
-            return
+        result: DataInformation | None = None
+
+        if output is not None:
         
-        result = output.with_value(value, f"Node {self.name} produced output of invalid type. Expected {output.type}, got {type(value)}")
+            result = output.with_value(value, f"Node {self.name} produced output of invalid type. Expected {output.type}, got {type(value)}")
 
-        if self.is_cached:
-            if output.path is None:
-                raise RuntimeException(f"Missing output path for node {self.name}")
-            
-            serializer = self.resolve_output_serializer(result)
-            serializer.save(output.path, result.value)
-            hash = get_file_hash(output.path)
+            if self.is_cached:
+                if output.path is None:
+                    raise RuntimeException(f"Missing output path for node {self.name}")
+                
+                serializer = self.resolve_output_serializer(result)
+                serializer.save(output.path, result.value)
+                hash = get_file_hash(output.path)
 
-            if hash is None:
-                raise RuntimeException(f"Failed to hash output of node {self.name}")
-            
-            for input in args.items():
-                if input[1].hash is None:
-                    continue
-                self.meta.update_input_hash(input[0], input[1].hash)
-            
-            result.hash = hash
-            self.meta.update_output_hash(hash)
-            self.meta_metaprovider.sync()
+                if hash is None:
+                    raise RuntimeException(f"Failed to hash output of node {self.name}")
+                
+                
+                result.hash = hash
+                self.meta.update_output_hash(hash)
+
+        for input in args.items():
+            if input[1].hash is None:
+                continue
+            self.meta.update_input_hash(input[0], input[1].hash)
 
         self.set_state(ExecutionState.EXECUTED)
+        self.meta_metaprovider.sync()
 
         return result
 

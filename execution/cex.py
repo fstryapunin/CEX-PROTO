@@ -36,7 +36,7 @@ class CexExecutor:
 
     def execute_pipeline(self, namespace: pipeline.namespace.Namespace):
         try:
-            logger.info(f"Validating pipeline {namespace.name}")
+            logger.info(f"\nValidating pipeline {namespace.name}")
             executor = NamespaceExecutor(self, namespace, meta_provider)
             logger.info(f"Updating metadata for {namespace.name}")
             meta_provider.data.set_namespace(executor.namespace, [node.node for node in list(executor.graph)])
@@ -44,7 +44,7 @@ class CexExecutor:
             executor.prepare()
             logger.info(f"Executing pipeline {namespace.name}")
             executor.execute()
-            logger.info(f"Executed pipeline {namespace.name}")
+            logger.info(f"Executed pipeline {namespace.name}\n")
         except ValidationException as ex:
             logger.log_multiple(ERROR, ex.messages)
         except Exception as ex:

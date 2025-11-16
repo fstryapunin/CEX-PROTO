@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Self
 from data.serializers import DataSerializer
 from execution.cex import CexExecutor
 from pipeline.node import Node
@@ -22,6 +23,13 @@ class Namespace:
     def run(self):
         executor = CexExecutor()
         executor.execute_pipeline(self)
+
+    @classmethod
+    def init_from(cls, namespace: Self, name: str, path: Path | None):
+        copy = cls(name, path)
+        copy.root_nodes = namespace.root_nodes
+        copy.serializers_by_type = namespace.serializers_by_type
+        return copy
 
     def __str__(self) -> str:
         return self.name

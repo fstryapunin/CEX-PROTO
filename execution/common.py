@@ -105,6 +105,10 @@ class DataInformation:
 
         return self
     
+    def with_hash(self):
+        self.update_hash()
+        return self
+
     def with_serializer(self, serializer: DataSerializer):
         self.serializer = serializer
         return self

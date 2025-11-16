@@ -19,6 +19,14 @@
       "module": "examples.serializers",
       "cwd": "${workspaceFolder}",
       "console": "integratedTerminal"
+    },
+    {
+      "name": "Python: Debug with Project Root namespacing",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "examples.namespacing",
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
     }
   ]
 }

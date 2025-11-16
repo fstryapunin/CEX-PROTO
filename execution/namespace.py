@@ -156,7 +156,7 @@ class NamespaceExecutor:
             logger.info(f"Started execution of node {node.name}")
 
             resolved_inputs = self.resolve_node_inputs(node, pop_or_default(node.runtime_id, available_inputs))
-
+            
             try:
                 if not node.get_are_inputs_current(resolved_inputs) or not node.get_is_output_current():
                     result = node.execute(resolved_inputs)
