@@ -56,7 +56,7 @@ class NodeExecutor:
         return [DataInformation(parameter[0], parameter[1].annotation, None) for parameter in parameters.items()]
 
     def get_input_aliases(self, input_name: str) -> list[str]:
-        if self.node.input_aliases is None:
+        if self.node.input_aliases is None or input_name not in self.node.input_aliases:
             return [input_name]
         
         aliases = self.node.input_aliases[input_name]
