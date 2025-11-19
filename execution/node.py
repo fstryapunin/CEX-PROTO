@@ -143,8 +143,8 @@ class NodeExecutor:
         return all([self.meta.is_current_input(input[0], input[1].hash) for input in inputs.items()])
 
     def get_is_output_current(self) -> bool:
-        if self.get_output_information() is None: return True
         if not self.is_cached: return False
+        if self.get_output_information() is None: return True
 
         current_hash = self.meta.output_hash
 
